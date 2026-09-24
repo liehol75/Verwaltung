@@ -2,24 +2,122 @@
 <html lang="de">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<script>
+/* PWA-Icon & Manifest zur Laufzeit erzeugen – keine externen Dateien nötig */
+(function(){
+  var svgMarkup =
+    '<svg xmlns="http://www.w3.org/2000/svg" width="180" height="180" viewBox="0 0 180 180">' +
+    '<defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1">' +
+    '<stop offset="0" stop-color="#4d7cf0"/><stop offset="1" stop-color="#16234a"/>' +
+    '</linearGradient></defs>' +
+    '<rect width="180" height="180" rx="40" fill="url(#g)"/>' +
+    '<text x="90" y="128" font-family="-apple-system,Helvetica,Arial,sans-serif" font-size="102" font-weight="700" fill="#ffffff" text-anchor="middle">\u20AC</text>' +
+    '</svg>';
+
+  var iconUrl = 'data:image/svg+xml,' + encodeURIComponent(svgMarkup);
+
+  var manifest = {
+    name: 'FinanzPlan',
+    short_name: 'FinanzPlan',
+    start_url: '.',
+    display: 'standalone',
+    background_color: '#101827',
+    theme_color: '#101827',
+    icons: [
+      { src: iconUrl, sizes: '180x180', type: 'image/svg+xml' },
+      { src: iconUrl, sizes: '512x512', type: 'image/svg+xml' }
+    ]
+  };
+
+  var manifestUrl = 'data:application/manifest+json,' + encodeURIComponent(JSON.stringify(manifest));
+
+  function addLink(rel, href){
+    var l = document.createElement('link');
+    l.rel = rel;
+    l.href = href;
+    document.head.appendChild(l);
+  }
+
+  addLink('apple-touch-icon', iconUrl);
+  addLink('icon', iconUrl);
+  addLink('manifest', manifestUrl);
+})();
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#101827">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="FinanzPlan">
 <title>FinanzPlan – persönlicher Finanzmanager</title>
 
 <style>
 :root{
   --bg:#f4f6f8;
+  --bg-soft:#fafbfc;
   --card:#fff;
   --ink:#152033;
   --muted:#6b7482;
   --line:#e4e8ee;
+
   --accent:#356ae6;
   --accent2:#214bb5;
+  --accent-soft-bg:#eaf0ff;
+  --accent-soft-border:#9db5fa;
+  --accent-soft-text:#2349ad;
+
   --good:#18864b;
+  --good-soft-bg:#edf9f2;
+  --good-soft-text:#176b3e;
+
   --warn:#bd7b00;
+  --warn-soft-bg:#fff6df;
+  --warn-soft-text:#8a5c00;
+
   --bad:#c43d4b;
+  --bad-soft-bg:#fbecee;
+  --bad-soft-text:#c43d4b;
+  --bad-soft-border:#f2cdd2;
+
   --shadow:0 8px 28px rgba(22,32,51,.08);
   --radius:18px;
+
+  color-scheme:light;
+}
+
+[data-theme="dark"]{
+  --bg:#0b0f16;
+  --bg-soft:#121826;
+  --card:#161c27;
+  --ink:#eef1f6;
+  --muted:#8b93a1;
+  --line:#232b38;
+
+  --accent:#5b87f5;
+  --accent2:#3f68d6;
+  --accent-soft-bg:#1c2740;
+  --accent-soft-border:#3a5490;
+  --accent-soft-text:#9ab4ff;
+
+  --good:#33b46f;
+  --good-soft-bg:#0f2a1c;
+  --good-soft-text:#5cd696;
+
+  --warn:#e0a838;
+  --warn-soft-bg:#332708;
+  --warn-soft-text:#f0c66b;
+
+  --bad:#e2707d;
+  --bad-soft-bg:#341219;
+  --bad-soft-text:#f2909c;
+  --bad-soft-border:#5c2530;
+
+  --shadow:0 8px 28px rgba(0,0,0,.45);
+
+  color-scheme:dark;
 }
 
 *{box-sizing:border-box}
@@ -28,15 +126,19 @@ html,body{
   margin:0;
   background:var(--bg);
   color:var(--ink);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Arial,sans-serif;
+  font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI",Roboto,Arial,sans-serif;
+  -webkit-tap-highlight-color:transparent;
 }
 
-button,input,select,textarea{font:inherit}
-button{cursor:pointer}
+body{transition:background-color .2s ease,color .2s ease}
+
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;-webkit-tap-highlight-color:transparent}
+button:active{transform:scale(.97)}
 
 .app{
   min-height:100vh;
-  padding-bottom:78px;
+  padding-bottom:calc(78px + env(safe-area-inset-bottom));
 }
 
 .top{
@@ -58,64 +160,34 @@ button{cursor:pointer}
   gap:12px;
 }
 
-.brand{
-  font-weight:800;
-  letter-spacing:.2px;
-}
+.brand{font-weight:800;letter-spacing:.2px}
+.brand small{display:block;font-weight:500;opacity:.68;font-size:11px;margin-top:2px}
 
-.brand small{
-  display:block;
-  font-weight:500;
-  opacity:.68;
-  font-size:11px;
-  margin-top:2px;
-}
-
-.top-actions{
-  display:flex;
-  gap:7px;
-}
+.top-actions{display:flex;gap:7px}
 
 .iconbtn{
   border:1px solid rgba(255,255,255,.18);
   background:rgba(255,255,255,.08);
   color:#fff;
   border-radius:12px;
-  padding:9px 11px;
+  padding:10px 12px;
+  font-size:15px;
+  line-height:1;
 }
 
-.main{
-  max-width:1100px;
-  margin:auto;
-  padding:18px 14px;
-}
+.main{max-width:1100px;margin:auto;padding:18px 14px}
 
 .page{display:none}
-.page.active{display:block}
+.page.active{display:block;animation:fadein .18s ease}
 
-.section-title{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  gap:12px;
-  margin:4px 0 14px;
-}
+@keyframes fadein{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
 
-.section-title h2{
-  font-size:21px;
-  margin:0;
-}
-
+.section-title{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:4px 0 14px}
+.section-title h2{font-size:21px;margin:0}
 .muted{color:var(--muted)}
 
-.grid{
-  display:grid;
-  gap:12px;
-}
-
-.cards{
-  grid-template-columns:repeat(4,1fr);
-}
+.grid{display:grid;gap:12px}
+.cards{grid-template-columns:repeat(4,1fr)}
 
 .card{
   background:var(--card);
@@ -125,593 +197,263 @@ button{cursor:pointer}
   padding:16px;
 }
 
-.metric .label{
-  font-size:12px;
-  color:var(--muted);
-  font-weight:650;
-}
-
-.metric .value{
-  font-size:24px;
-  font-weight:800;
-  margin-top:7px;
-  line-height:1.1;
-}
-
-.metric .sub{
-  font-size:11px;
-  color:var(--muted);
-  margin-top:7px;
-}
+.metric .label{font-size:12px;color:var(--muted);font-weight:650}
+.metric .value{font-size:24px;font-weight:800;margin-top:7px;line-height:1.1}
+.metric .sub{font-size:11px;color:var(--muted);margin-top:7px}
 
 .positive{color:var(--good)}
 .negative{color:var(--bad)}
 .warning{color:var(--warn)}
 
-.quick{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:10px;
-  margin:14px 0;
+/* Hero-Kachel: Frei verfügbar */
+.hero{
+  background:linear-gradient(155deg,var(--accent),var(--accent2));
+  color:#fff;
+  border-radius:22px;
+  padding:20px 20px 18px;
+  box-shadow:0 14px 30px rgba(33,75,181,.28);
+  margin-bottom:14px;
+  position:relative;
+  overflow:hidden;
 }
+
+.hero .herotop{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:10px;
+  font-size:12.5px;
+  font-weight:700;
+  opacity:.85;
+}
+
+.hero .herodot{
+  width:9px;height:9px;border-radius:50%;
+  background:#b9c0c9;
+  box-shadow:0 0 0 4px rgba(255,255,255,.15);
+}
+
+.hero .herodot.green{background:#4ee08a}
+.hero .herodot.yellow{background:#f0c94a}
+.hero .herodot.red{background:#f2828e}
+
+.hero .heroval{
+  font-size:37px;
+  font-weight:800;
+  margin-top:8px;
+  letter-spacing:-.3px;
+}
+
+.hero .herosub{
+  font-size:12.5px;
+  opacity:.82;
+  margin-top:6px;
+}
+
+.quick{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
 
 .btn{
-  border:0;
-  border-radius:13px;
-  padding:11px 14px;
-  font-weight:750;
-  background:var(--accent);
-  color:#fff;
+  border:0;border-radius:13px;padding:12px 14px;font-weight:750;
+  background:var(--accent);color:#fff;
+  transition:background .15s ease;
 }
-
 .btn:hover{background:var(--accent2)}
+.btn.secondary{background:var(--accent-soft-bg);color:var(--accent-soft-text);border:1px solid var(--accent-soft-border)}
+.btn.ghost{background:var(--bg-soft);color:var(--ink);border:1px solid var(--line)}
+.btn.danger{background:var(--bad-soft-bg);color:var(--bad-soft-text);border:1px solid var(--bad-soft-border)}
+.btn.small{padding:8px 10px;border-radius:10px;font-size:13px}
+.btn:disabled{opacity:.5}
 
-.btn.secondary{
-  background:#eef2f8;
-  color:var(--ink);
-  border:1px solid var(--line);
+.toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.toolbar select,.toolbar input{width:auto}
+
+.field{display:flex;flex-direction:column;gap:6px}
+.field label{font-size:12px;font-weight:750;color:var(--muted)}
+
+.field input,.field select,.field textarea,.inputlike{
+  width:100%;border:1px solid var(--line);background:var(--card);
+  border-radius:11px;padding:11px 12px;color:var(--ink);outline:none;
+  font-size:16px;
 }
 
-.btn.danger{
-  background:#fbecee;
-  color:var(--bad);
-  border:1px solid #f2cdd2;
+.field input[type=color]{padding:4px;height:46px;cursor:pointer}
+
+.field input:focus,.field select:focus,.field textarea:focus{
+  border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft-bg);
 }
 
-.btn.small{
-  padding:8px 10px;
-  border-radius:10px;
-  font-size:13px;
-}
+textarea{min-height:82px;resize:vertical}
 
-.toolbar{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  align-items:center;
-}
-
-.toolbar select,
-.toolbar input{
-  width:auto;
-}
-
-.field{
-  display:flex;
-  flex-direction:column;
-  gap:6px;
-}
-
-.field label{
-  font-size:12px;
-  font-weight:750;
-  color:#46505e;
-}
-
-.field input,
-.field select,
-.field textarea,
-.inputlike{
-  width:100%;
-  border:1px solid #d8dde5;
-  background:#fff;
-  border-radius:11px;
-  padding:10px 11px;
-  color:var(--ink);
-  outline:none;
-}
-
-.field input:focus,
-.field select:focus,
-.field textarea:focus{
-  border-color:var(--accent);
-  box-shadow:0 0 0 3px rgba(53,106,230,.12);
-}
-
-textarea{
-  min-height:82px;
-  resize:vertical;
-}
-
-.formgrid{
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:12px;
-}
-
+.formgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
 .full{grid-column:1/-1}
 
-.chips{
-  display:flex;
-  flex-wrap:wrap;
-  gap:7px;
-}
+.chips{display:flex;flex-wrap:wrap;gap:7px}
+.chip{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:7px 11px;font-size:12px}
+.chip.on{background:var(--accent-soft-bg);border-color:var(--accent-soft-border);color:var(--accent-soft-text);font-weight:750}
 
-.chip{
-  border:1px solid #d8dde5;
-  background:#fff;
-  border-radius:999px;
-  padding:7px 10px;
-  font-size:12px;
-}
-
-.chip.on{
-  background:#eaf0ff;
-  border-color:#9db5fa;
-  color:#2349ad;
-  font-weight:750;
-}
-
-.checkgrid{
-  display:grid;
-  grid-template-columns:repeat(2,1fr);
-  gap:7px;
-}
-
-.check{
-  display:flex;
-  align-items:center;
-  gap:8px;
-  border:1px solid var(--line);
-  padding:9px;
-  border-radius:10px;
-  background:#fafbfc;
-  font-size:13px;
-}
-
+.checkgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:7px}
+.check{display:flex;align-items:center;gap:8px;border:1px solid var(--line);padding:10px;border-radius:10px;background:var(--bg-soft);font-size:13px}
 .check input{width:auto}
 
-.list{
-  display:flex;
-  flex-direction:column;
-  gap:8px;
-}
+.list{display:flex;flex-direction:column;gap:8px}
 
 .row{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  gap:10px;
-  padding:12px;
-  border:1px solid var(--line);
-  border-radius:13px;
-  background:#fff;
+  display:flex;justify-content:space-between;align-items:center;gap:10px;
+  padding:12px;border:1px solid var(--line);border-radius:13px;background:var(--card);
 }
 
-.row-main{
-  min-width:0;
+.swiperow{position:relative;overflow:hidden;border-radius:13px}
+.swipe-del{
+  position:absolute;top:0;right:0;bottom:0;width:84px;border:0;
+  background:var(--bad);color:#fff;font-weight:750;font-size:12px;
+  display:flex;align-items:center;justify-content:center;
+}
+.swiperow .row{
+  position:relative;transition:transform .18s ease;touch-action:pan-y;cursor:pointer;
 }
 
-.row-title{
-  font-weight:750;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
+.undotoast{
+  position:fixed;left:50%;bottom:calc(88px + env(safe-area-inset-bottom));
+  transform:translateX(-50%);background:#101827;color:#fff;
+  padding:12px 8px 12px 16px;border-radius:14px;box-shadow:0 8px 24px rgba(0,0,0,.3);
+  z-index:60;display:flex;align-items:center;gap:6px;font-size:13px;
+  max-width:92vw;animation:fadein .18s ease;
+}
+.undotoast button{
+  background:none;border:0;color:#8fb0ff;font-weight:750;padding:8px 10px;font-size:13px;
 }
 
-.row-sub{
-  font-size:12px;
-  color:var(--muted);
-  margin-top:3px;
-}
-
-.row-right{
-  text-align:right;
-  white-space:nowrap;
-}
-
+.row-main{min-width:0}
+.row-title{font-weight:750;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.row-sub{font-size:12px;color:var(--muted);margin-top:3px}
+.row-right{text-align:right;white-space:nowrap}
 .amount{font-weight:800}
 
-.dot{
-  width:8px;
-  height:8px;
-  border-radius:50%;
-  display:inline-block;
-  margin-right:5px;
-  background:#999;
-}
-
+.dot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:5px;background:#999}
 .income .dot{background:var(--good)}
 .expense .dot{background:var(--bad)}
 
-.empty{
-  padding:28px;
-  text-align:center;
-  color:var(--muted);
-  border:1px dashed #ccd2dc;
-  border-radius:14px;
-  background:#fafbfc;
-}
+.swatch{display:inline-block;width:11px;height:11px;border-radius:50%;margin-right:6px;vertical-align:middle;border:1px solid var(--line)}
+
+.empty{padding:26px;text-align:center;color:var(--muted);border:1px dashed var(--line);border-radius:14px;background:var(--bg-soft)}
 
 .nav{
-  position:fixed;
-  z-index:30;
-  left:0;
-  right:0;
-  bottom:0;
-  background:rgba(255,255,255,.96);
-  backdrop-filter:blur(12px);
+  position:fixed;z-index:30;left:0;right:0;bottom:0;
+  background:color-mix(in srgb, var(--card) 92%, transparent);
+  backdrop-filter:blur(14px);
   border-top:1px solid var(--line);
-  padding:7px max(7px,env(safe-area-inset-left))
-          calc(7px + env(safe-area-inset-bottom));
-  display:grid;
-  grid-template-columns:repeat(5,1fr);
+  padding:7px max(7px,env(safe-area-inset-left)) calc(7px + env(safe-area-inset-bottom));
+  display:grid;grid-template-columns:repeat(5,1fr);
 }
 
-.nav button{
-  border:0;
-  background:transparent;
-  color:#737b88;
-  font-size:10px;
-  font-weight:700;
-  padding:6px 2px;
-}
-
+.nav button{border:0;background:transparent;color:var(--muted);font-size:10px;font-weight:700;padding:7px 2px;border-radius:12px}
 .nav button.active{color:var(--accent)}
+.nav b{display:block;font-size:19px;line-height:19px;margin-bottom:2px}
 
-.nav b{
-  display:block;
-  font-size:18px;
-  line-height:18px;
-  margin-bottom:2px;
-}
-
-.modalback{
-  position:fixed;
-  inset:0;
-  background:rgba(8,15,28,.58);
-  z-index:50;
-  display:none;
-  align-items:flex-end;
-  justify-content:center;
-}
-
+.modalback{position:fixed;inset:0;background:rgba(8,15,28,.58);z-index:50;display:none;align-items:flex-end;justify-content:center}
 .modalback.show{display:flex}
 
 .modal{
-  width:min(760px,100%);
-  max-height:94vh;
-  overflow:auto;
-  background:#fff;
-  border-radius:22px 22px 0 0;
-  padding:18px 16px calc(20px + env(safe-area-inset-bottom));
-  box-shadow:0 -10px 35px rgba(0,0,0,.2);
+  width:min(760px,100%);max-height:94vh;overflow:auto;background:var(--card);
+  border-radius:22px 22px 0 0;padding:18px 16px calc(20px + env(safe-area-inset-bottom));
+  box-shadow:0 -10px 35px rgba(0,0,0,.25);
 }
 
-.modalhead{
-  display:flex;
-  align-items:center;
-  justify-content:space-between;
-  margin-bottom:15px;
-}
+.modalhead{display:flex;align-items:center;justify-content:space-between;margin-bottom:15px}
+.modalhead h3{margin:0;font-size:19px;display:flex;align-items:center}
+.close{border:1px solid var(--line);background:var(--bg-soft);color:var(--ink);border-radius:10px;padding:8px 11px}
 
-.modalhead h3{
-  margin:0;
-  font-size:19px;
-}
+.actions{display:flex;gap:8px;justify-content:flex-end;margin-top:15px;flex-wrap:wrap}
 
-.close{
-  border:0;
-  background:#eef1f5;
-  border-radius:10px;
-  padding:7px 10px;
-}
+.tabs{display:flex;gap:6px;overflow:auto;padding-bottom:3px;margin-bottom:14px}
+.tab{border:1px solid var(--line);background:var(--card);border-radius:999px;padding:8px 13px;white-space:nowrap;font-size:12px;font-weight:700}
+.tab.active{background:var(--accent-soft-bg);color:var(--accent-soft-text);border-color:var(--accent-soft-border)}
 
-.actions{
-  display:flex;
-  gap:8px;
-  justify-content:flex-end;
-  margin-top:15px;
-  flex-wrap:wrap;
-}
+.calendar{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden}
+.calhead{display:flex;justify-content:space-between;align-items:center;padding:13px 14px;border-bottom:1px solid var(--line)}
+.week,.days{display:grid;grid-template-columns:repeat(7,1fr)}
+.week div{text-align:center;color:var(--muted);font-size:11px;font-weight:750;padding:9px 2px}
 
-.tabs{
-  display:flex;
-  gap:6px;
-  overflow:auto;
-  padding-bottom:3px;
-  margin-bottom:14px;
-}
-
-.tab{
-  border:1px solid var(--line);
-  background:#fff;
-  border-radius:999px;
-  padding:8px 12px;
-  white-space:nowrap;
-  font-size:12px;
-  font-weight:700;
-}
-
-.tab.active{
-  background:#eaf0ff;
-  color:#244dad;
-  border-color:#a9bcf5;
-}
-
-.calendar{
-  background:#fff;
-  border:1px solid var(--line);
-  border-radius:var(--radius);
-  overflow:hidden;
-}
-
-.calhead{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  padding:13px 14px;
-  border-bottom:1px solid var(--line);
-}
-
-.week,
-.days{
-  display:grid;
-  grid-template-columns:repeat(7,1fr);
-}
-
-.week div{
-  text-align:center;
-  color:var(--muted);
-  font-size:11px;
-  font-weight:750;
-  padding:9px 2px;
-}
-
-.day{
-  min-height:68px;
-  border-right:1px solid #eef0f3;
-  border-bottom:1px solid #eef0f3;
-  padding:6px;
-  background:#fff;
-  position:relative;
-}
-
+.day{min-height:68px;border-right:1px solid var(--line);border-bottom:1px solid var(--line);padding:6px;background:var(--card);position:relative}
 .day:nth-child(7n){border-right:0}
-
-.day.mutedday{
-  background:#fafbfc;
-  color:#b4bac4;
-}
-
-.day.today{
-  background:#f0f4ff;
-}
-
-.daynum{
-  font-size:12px;
-  font-weight:750;
-}
-
-.marks{
-  display:flex;
-  gap:3px;
-  margin-top:7px;
-}
-
-.mark{
-  width:7px;
-  height:7px;
-  border-radius:50%;
-}
-
+.day.mutedday{background:var(--bg-soft);color:var(--muted);opacity:.6}
+.day.today{background:var(--accent-soft-bg)}
+.daynum{font-size:12px;font-weight:750}
+.marks{display:flex;gap:3px;margin-top:7px}
+.mark{width:7px;height:7px;border-radius:50%}
 .mark.i{background:var(--good)}
 .mark.e{background:var(--bad)}
+.mark.r{background:var(--accent)}
+.daytotal{font-size:9px;color:var(--muted);margin-top:3px;white-space:nowrap;overflow:hidden}
 
-.daytotal{
-  font-size:9px;
-  color:var(--muted);
-  margin-top:3px;
-  white-space:nowrap;
-  overflow:hidden;
-}
+.chartbox{height:230px;position:relative}
+.chartbox canvas{width:100%;height:100%}
 
-.chartbox{
-  height:250px;
-  position:relative;
-}
+.barrow{display:grid;grid-template-columns:minmax(90px,1fr) 2fr 70px;gap:8px;align-items:center;margin:9px 0}
+.bar{height:10px;background:var(--bg-soft);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+.bar span{display:block;height:100%;background:var(--accent);border-radius:999px}
+.bar span.over{background:var(--bad)}
+.bar span.near{background:var(--warn)}
+.barlabel{font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.barvalue{text-align:right;font-size:12px;font-weight:750}
 
-.chartbox canvas{
-  width:100%;
-  height:100%;
-}
-
-.barrow{
-  display:grid;
-  grid-template-columns:minmax(90px,1fr) 2fr 70px;
-  gap:8px;
-  align-items:center;
-  margin:9px 0;
-}
-
-.bar{
-  height:10px;
-  background:#edf0f4;
-  border-radius:999px;
-  overflow:hidden;
-}
-
-.bar span{
-  display:block;
-  height:100%;
-  background:var(--accent);
-  border-radius:999px;
-}
-
-.barlabel{
-  font-size:12px;
-  white-space:nowrap;
-  overflow:hidden;
-  text-overflow:ellipsis;
-}
-
-.barvalue{
-  text-align:right;
-  font-size:12px;
-  font-weight:750;
-}
-
-.ampel{
-  display:flex;
-  align-items:center;
-  gap:9px;
-}
-
-.light{
-  width:15px;
-  height:15px;
-  border-radius:50%;
-  background:#b9c0c9;
-}
-
+.ampel{display:flex;align-items:center;gap:9px}
+.light{width:15px;height:15px;border-radius:50%;background:#b9c0c9}
 .light.green{background:var(--good)}
-.light.yellow{background:#e4a526}
+.light.yellow{background:var(--warn)}
 .light.red{background:var(--bad)}
 
-.note{
-  font-size:11px;
-  color:var(--muted);
-  line-height:1.45;
-}
+.note{font-size:11px;color:var(--muted);line-height:1.45;display:block}
 
-.split{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:12px;
-}
+.split{display:grid;grid-template-columns:1fr 1fr;gap:12px}
 
-.statline{
-  display:flex;
-  justify-content:space-between;
-  gap:10px;
-  padding:9px 0;
-  border-bottom:1px solid #edf0f3;
-  font-size:13px;
-}
-
+.statline{display:flex;justify-content:space-between;gap:10px;padding:9px 0;border-bottom:1px solid var(--line);font-size:13px}
 .statline:last-child{border-bottom:0}
 
-.dangertext{color:var(--bad)}
+.successbox{padding:10px 12px;border-radius:11px;background:var(--good-soft-bg);color:var(--good-soft-text);font-size:12px}
+.warningbox{padding:10px 12px;border-radius:11px;background:var(--warn-soft-bg);color:var(--warn-soft-text);font-size:12px}
+.dangerbox{padding:10px 12px;border-radius:11px;background:var(--bad-soft-bg);color:var(--bad-soft-text);font-size:12px}
 
-.successbox{
-  padding:10px 12px;
-  border-radius:11px;
-  background:#edf9f2;
-  color:#176b3e;
-  font-size:12px;
-}
+.modal .checkgrid{max-height:190px;overflow:auto}
 
-.warningbox{
-  padding:10px 12px;
-  border-radius:11px;
-  background:#fff6df;
-  color:#8a5c00;
-  font-size:12px;
-}
+.pill{display:inline-block;padding:3px 8px;border-radius:999px;background:var(--bg-soft);border:1px solid var(--line);font-size:10px;color:var(--muted);margin:2px 2px 0 0}
 
-.modal .checkgrid{
-  max-height:190px;
-  overflow:auto;
-}
+.goalrow{border:1px solid var(--line);border-radius:14px;padding:12px;background:var(--card)}
+.goalrow + .goalrow{margin-top:8px}
+.goaltop{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px}
+.goalname{font-weight:750}
+.goalpct{font-size:12px;color:var(--muted);font-weight:700}
 
-.pill{
-  display:inline-block;
-  padding:3px 7px;
-  border-radius:999px;
-  background:#f0f2f5;
-  font-size:10px;
-  color:#616a77;
-  margin:2px 2px 0 0;
-}
+.themepicker{display:flex;gap:8px;flex-wrap:wrap}
+.themepicker .chip{flex:1;text-align:center;min-width:90px}
+
+.clickable{cursor:pointer}
 
 .hidden{display:none!important}
 
 @media(max-width:760px){
-  .cards{
-    grid-template-columns:1fr 1fr;
-  }
-
-  .formgrid,
-  .split{
-    grid-template-columns:1fr;
-  }
-
-  .barrow{
-    grid-template-columns:90px 1fr 65px;
-  }
-
-  .day{
-    min-height:60px;
-  }
-
-  .daytotal{
-    display:none;
-  }
-
-  .main{
-    padding:15px 11px;
-  }
-
-  .card{
-    padding:14px;
-  }
-
-  .metric .value{
-    font-size:21px;
-  }
+  .cards{grid-template-columns:1fr 1fr}
+  .formgrid,.split{grid-template-columns:1fr}
+  .barrow{grid-template-columns:90px 1fr 65px}
+  .day{min-height:66px}
+  .daynum{font-size:13px}
+  .daytotal{display:none}
+  .main{padding:15px 11px}
+  .card{padding:14px}
+  .metric .value{font-size:21px}
+  .hero .heroval{font-size:32px}
 }
 
 @media(min-width:900px){
   .nav{
-    position:sticky;
-    top:0;
-    bottom:auto;
-    max-width:1100px;
-    margin:auto;
-    border:0;
-    background:transparent;
-    backdrop-filter:none;
-    grid-template-columns:repeat(5,1fr);
+    position:sticky;top:0;bottom:auto;max-width:1100px;margin:auto;border:0;
+    background:transparent;backdrop-filter:none;grid-template-columns:repeat(5,1fr);
     padding:0 14px 10px;
   }
-
-  .nav button{
-    background:#fff;
-    border:1px solid var(--line);
-    border-radius:12px;
-  }
-
-  .app{
-    padding-bottom:0;
-  }
-
-  .modalback{
-    align-items:center;
-  }
-
-  .modal{
-    border-radius:22px;
-  }
+  .nav button{background:var(--card);border:1px solid var(--line);border-radius:12px}
+  .app{padding-bottom:0}
+  .modalback{align-items:center}
+  .modal{border-radius:22px}
 }
 </style>
 </head>
@@ -726,8 +468,8 @@ textarea{
       FinanzPlan
       <small>einfach. übersichtlich. aktuell.</small>
     </div>
-
     <div class="top-actions">
+      <button class="iconbtn" onclick="toggleThemeQuick()" id="themeQuickBtn" title="Darstellung wechseln">◐</button>
       <button class="iconbtn" onclick="openSettings()">⚙</button>
     </div>
   </div>
@@ -736,17 +478,11 @@ textarea{
 <nav class="nav" id="nav"></nav>
 
 <main class="main">
-
 <section id="page-dashboard" class="page active"></section>
-
 <section id="page-entry" class="page"></section>
-
 <section id="page-calendar" class="page"></section>
-
 <section id="page-analysis" class="page"></section>
-
 <section id="page-lists" class="page"></section>
-
 </main>
 </div>
 
@@ -754,4577 +490,2824 @@ textarea{
   <div id="modal" class="modal"></div>
 </div>
 
-<input
-  id="importFile"
-  type="file"
-  accept="application/json,.json"
-  class="hidden"
->
+<input id="importFile" type="file" accept="application/json,.json" class="hidden">
 
 <script>
 'use strict';
 
-const KEY='finanzplan_v1';
+const KEY='finanzplan_v3';
+const LEGACY_KEYS=['finanzplan_v2','finanzplan_v1'];
 
 const defaultCats=[
-  'Wohnen',
-  'Lebensmittel',
-  'Mobilität',
-  'Auto',
-  'Versicherung',
-  'Freizeit',
-  'Gesundheit',
-  'Haushalt',
-  'Urlaub',
-  'Kleidung',
-  'Abos',
-  'Steuern',
-  'Gehalt',
-  'Sonstiges'
+  'Wohnen','Lebensmittel','Mobilität','Auto','Versicherung','Freizeit',
+  'Gesundheit','Haushalt','Urlaub','Kleidung','Abos','Steuern','Gehalt','Sonstiges'
 ];
 
 let state=loadState();
+let pendingRecurringEdit=null;
+let catChartInstance=null;
+let trendChartInstance=null;
+let reserveGoalChartInstance=null;
 
-let ui={
+const UI_KEY='finanzplan_ui_v1';
+
+function loadUiPrefs(){
+  try{
+    const raw=localStorage.getItem(UI_KEY);
+    if(!raw) return {};
+    const p=JSON.parse(raw);
+    return {
+      analysisPeriod: p.analysisPeriod || 'month',
+      analysisType: p.analysisType || 'all',
+      analysisFixed: !!p.analysisFixed,
+      analysisCats: Array.isArray(p.analysisCats) ? p.analysisCats : []
+    };
+  }catch(e){ return {}; }
+}
+
+function saveUiPrefs(){
+  try{
+    localStorage.setItem(UI_KEY, JSON.stringify({
+      analysisPeriod:ui.analysisPeriod,
+      analysisType:ui.analysisType,
+      analysisFixed:ui.analysisFixed,
+      analysisCats:ui.analysisCats
+    }));
+  }catch(e){}
+}
+
+let ui=Object.assign({
   page:'dashboard',
   cal:new Date(),
   analysisPeriod:'month',
   analysisDate:new Date(),
   analysisCats:[],
   analysisType:'all',
-  analysisFixed:false
-};
+  analysisFixed:false,
+  calSelectedDay:null
+}, loadUiPrefs());
 
+/* =========================
+   UNDO-TOAST
+========================= */
+
+let undoState=null;
+
+function showUndoToast(message,undoFn){
+  const existing=document.getElementById('undoToast');
+  if(existing) existing.remove();
+  if(undoState && undoState.timeoutId) clearTimeout(undoState.timeoutId);
+
+  const toast=document.createElement('div');
+  toast.id='undoToast';
+  toast.className='undotoast';
+  toast.innerHTML=`<span>${esc(message)}</span><button onclick="undoLastDelete()">Rückgängig</button>`;
+  document.body.appendChild(toast);
+
+  undoState={
+    undo:undoFn,
+    timeoutId:setTimeout(()=>{ toast.remove(); undoState=null; },6000)
+  };
+}
+
+function undoLastDelete(){
+  if(!undoState) return;
+  clearTimeout(undoState.timeoutId);
+  undoState.undo();
+  const toast=document.getElementById('undoToast');
+  if(toast) toast.remove();
+  undoState=null;
+  save();
+  render();
+}
+
+/* =========================
+   SWIPE-TO-DELETE (Buchungs- und Rücklagenzeilen)
+========================= */
+
+let swipeState=null;
+
+function swipeStart(ev,el){
+  const t=ev.touches[0];
+  swipeState={el, startX:t.clientX, dx:0, moved:false};
+}
+
+function swipeMove(ev,el){
+  if(!swipeState || swipeState.el!==el) return;
+  const t=ev.touches[0];
+  let dx=t.clientX-swipeState.startX;
+  dx=Math.min(0,Math.max(dx,-84));
+  swipeState.dx=dx;
+  if(Math.abs(dx)>6) swipeState.moved=true;
+  el.style.transform=`translateX(${dx}px)`;
+}
+
+function swipeEnd(ev,el){
+  if(!swipeState || swipeState.el!==el) return;
+  const open=swipeState.dx<-42;
+  el.style.transform=open?'translateX(-84px)':'translateX(0)';
+  if(swipeState.moved){
+    el.dataset.justSwiped='1';
+    setTimeout(()=>{ delete el.dataset.justSwiped; },300);
+  }
+  swipeState=null;
+}
+
+function swipeRowClick(ev,el,onTap){
+  if(el.dataset.justSwiped) return;
+  if(el.style.transform && el.style.transform.includes('-84')){
+    el.style.transform='translateX(0)';
+    return;
+  }
+  onTap();
+}
 
 /* =========================
    GRUNDLAGEN
 ========================= */
 
 function id(){
-  return (
-    crypto &&
-    crypto.randomUUID
-  )
-  ? crypto.randomUUID()
-  : Date.now().toString(36)+Math.random().toString(36).slice(2);
+  return (crypto && crypto.randomUUID) ? crypto.randomUUID()
+    : Date.now().toString(36)+Math.random().toString(36).slice(2);
 }
-
 
 function loadState(){
   try{
-    const s=JSON.parse(localStorage.getItem(KEY));
+    let raw=localStorage.getItem(KEY);
+    if(!raw){
+      for(const lk of LEGACY_KEYS){
+        const legacy=localStorage.getItem(lk);
+        if(legacy){ raw=legacy; break; }
+      }
+    }
+    const s=JSON.parse(raw);
     return normalize(s||{});
   }catch(e){
     return normalize({});
   }
 }
 
-
 function normalize(s){
+
+  const cats = Array.isArray(s.categories) && s.categories.length
+    ? s.categories.map(c=>{
+        if(typeof c==='string') return {id:id(),name:c,budget:0,color:''};
+        return {id:c.id||id(), name:c.name||'Kategorie', budget:Number(c.budget)||0, color:c.color||''};
+      })
+    : defaultCats.map(name=>({id:id(),name,budget:0,color:''}));
+
+  const recurring = Array.isArray(s.recurring) ? s.recurring.map(r=>({
+    id:r.id||id(),
+    type:r.type||'expense',
+    name:r.name||'Posten',
+    amount:Number(r.amount)||0,
+    amountHistory: Array.isArray(r.amountHistory) && r.amountHistory.length
+      ? r.amountHistory.map(h=>({amount:Number(h.amount)||0, validFrom:h.validFrom||r.startDate||today()}))
+      : [{amount:Number(r.amount)||0, validFrom:r.startDate||today()}],
+    startDate:r.startDate||today(),
+    recurrence:r.recurrence||'monthly',
+    categories:Array.isArray(r.categories)?r.categories:[],
+    notes:r.notes||'',
+    fixed:!!r.fixed,
+    active:r.active!==false,
+    annualOccurrences:Number(r.annualOccurrences)||0
+  })) : [];
+
+  const goals = Array.isArray(s.goals) ? s.goals.map(g=>{
+    let history = Array.isArray(g.history) ? g.history.map(h=>({
+      id:h.id||id(), date:h.date||today(), amount:Number(h.amount)||0, kind:h.kind||'in', note:h.note||''
+    })) : [];
+    if(!history.length && Number(g.savedAmount)>0){
+      history=[{id:id(), date:today(), amount:Number(g.savedAmount), kind:'in', note:'Migrierter Altbestand'}];
+    }
+    return {
+      id:g.id||id(),
+      name:g.name||'Sparziel',
+      targetAmount:Number(g.targetAmount)||0,
+      targetDate:g.targetDate||'',
+      notes:g.notes||'',
+      history
+    };
+  }) : [];
+
+  const favorites = Array.isArray(s.favorites) ? s.favorites.map(f=>({
+    id:f.id||id(), type:f.type||'expense', amount:Number(f.amount)||0,
+    name:f.name||'Favorit', categories:Array.isArray(f.categories)?f.categories:[]
+  })) : [];
+
+  const reserves = Array.isArray(s.reserves) ? s.reserves.map(r=>({
+    id:r.id||id(), name:r.name||'Rücklage', notes:r.notes||''
+  })) : [];
+
+  const reserveEntries = Array.isArray(s.reserveEntries) ? s.reserveEntries.map(e=>({
+    id:e.id||id(), reserveId:e.reserveId, date:e.date||today(),
+    amount:Number(e.amount)||0, kind:e.kind||'in', note:e.note||''
+  })) : [];
+
   return {
-    version:1,
+    version:3,
 
     settings:Object.assign(
       {
         currency:'EUR',
         openingBalance:0,
-
+        theme:'system',
         ampel:{
-          balance:{
-            green:1000,
-            yellow:0
-          },
-
-          adjusted:{
-            green:1000,
-            yellow:0
-          },
-
-          monthExpense:{
-            green:1000,
-            yellow:2000
-          }
+          balance:{green:1000,yellow:0},
+          available:{green:1000,yellow:0},
+          monthExpense:{green:1000,yellow:2000}
         }
       },
-      s.settings||{}
+      s.settings||{},
+      {
+        ampel:Object.assign(
+          {
+            balance:{green:1000,yellow:0},
+            available:{green:1000,yellow:0},
+            monthExpense:{green:1000,yellow:2000}
+          },
+          s.settings && s.settings.ampel
+            ? {
+                balance:s.settings.ampel.balance||{green:1000,yellow:0},
+                available:s.settings.ampel.available||s.settings.ampel.adjusted||{green:1000,yellow:0},
+                monthExpense:s.settings.ampel.monthExpense||{green:1000,yellow:2000}
+              }
+            : {}
+        )
+      }
     ),
 
-    categories:
-      Array.isArray(s.categories) && s.categories.length
-      ? s.categories
-      : defaultCats.map(name=>({
-          id:id(),
-          name
-        })),
-
-    transactions:
-      Array.isArray(s.transactions)
-      ? s.transactions
-      : [],
-
-    recurring:
-      Array.isArray(s.recurring)
-      ? s.recurring
-      : []
+    categories:cats,
+    transactions:Array.isArray(s.transactions) ? s.transactions : [],
+    recurring,
+    favorites,
+    goals,
+    reserves,
+    reserveEntries
   };
 }
-
 
 function save(){
   try{
     localStorage.setItem(KEY,JSON.stringify(state));
   }catch(e){
-    alert(
-      'Die Daten konnten nicht gespeichert werden. '+
-      'Bitte exportiere zur Sicherheit eine Sicherung.'
-    );
+    alert('Die Daten konnten nicht gespeichert werden. Bitte exportiere zur Sicherheit eine Sicherung.');
   }
 }
-
 
 function esc(x){
-  return String(x??'').replace(
-    /[&<>'"]/g,
-    m=>({
-      '&':'&amp;',
-      '<':'&lt;',
-      '>':'&gt;',
-      "'":'&#39;',
-      '"':'&quot;'
-    }[m])
-  );
+  return String(x??'').replace(/[&<>'"]/g, m=>({
+    '&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'
+  }[m]));
 }
-
 
 function money(n){
-  return new Intl.NumberFormat(
-    'de-DE',
-    {
-      style:'currency',
-      currency:state.settings.currency||'EUR'
-    }
-  ).format(Number(n)||0);
+  return new Intl.NumberFormat('de-DE',{style:'currency',currency:state.settings.currency||'EUR'}).format(Number(n)||0);
 }
 
+function cssVar(name){
+  return getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+}
 
 function dateObj(s){
-  if(s instanceof Date){
-    return new Date(
-      s.getFullYear(),
-      s.getMonth(),
-      s.getDate()
-    );
-  }
-
+  if(s instanceof Date) return new Date(s.getFullYear(),s.getMonth(),s.getDate());
   const [y,m,d]=String(s).split('-').map(Number);
-
   return new Date(y,m-1,d);
 }
 
-
 function iso(d){
   d=dateObj(d);
-
-  return `${d.getFullYear()}-${String(
-    d.getMonth()+1
-  ).padStart(2,'0')}-${String(
-    d.getDate()
-  ).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
 }
 
+function today(){ return iso(new Date()); }
 
-function today(){
-  return iso(new Date());
-}
+function addDays(s,n){ const d=dateObj(s); d.setDate(d.getDate()+n); return iso(d); }
 
-
-function addDays(s,n){
-  const d=dateObj(s);
-  d.setDate(d.getDate()+n);
-  return iso(d);
-}
-
-
-function endMonth(s){
-  const d=dateObj(s);
-
-  return iso(
-    new Date(
-      d.getFullYear(),
-      d.getMonth()+1,
-      0
-    )
-  );
-}
-
-
-function startMonth(s){
-  const d=dateObj(s);
-
-  return iso(
-    new Date(
-      d.getFullYear(),
-      d.getMonth(),
-      1
-    )
-  );
-}
-
+function endMonth(s){ const d=dateObj(s); return iso(new Date(d.getFullYear(),d.getMonth()+1,0)); }
+function startMonth(s){ const d=dateObj(s); return iso(new Date(d.getFullYear(),d.getMonth(),1)); }
 
 function addMonths(s,n){
   const d=dateObj(s);
   const day=d.getDate();
-
   d.setDate(1);
   d.setMonth(d.getMonth()+n);
-
-  d.setDate(
-    Math.min(
-      day,
-      new Date(
-        d.getFullYear(),
-        d.getMonth()+1,
-        0
-      ).getDate()
-    )
-  );
-
+  d.setDate(Math.min(day, new Date(d.getFullYear(),d.getMonth()+1,0).getDate()));
   return iso(d);
 }
 
+function fmtDate(s){ return new Intl.DateTimeFormat('de-DE',{day:'2-digit',month:'2-digit',year:'numeric'}).format(dateObj(s)); }
+function fmtMonth(s){ return new Intl.DateTimeFormat('de-DE',{month:'long',year:'numeric'}).format(dateObj(s)); }
+function fmtMonthShort(s){ return new Intl.DateTimeFormat('de-DE',{month:'short'}).format(dateObj(s)); }
+function monthName(s){ return new Intl.DateTimeFormat('de-DE',{month:'long'}).format(dateObj(s)); }
 
-function fmtDate(s){
-  return new Intl.DateTimeFormat(
-    'de-DE',
-    {
-      day:'2-digit',
-      month:'2-digit',
-      year:'numeric'
-    }
-  ).format(dateObj(s));
-}
-
-
-function fmtMonth(s){
-  return new Intl.DateTimeFormat(
-    'de-DE',
-    {
-      month:'long',
-      year:'numeric'
-    }
-  ).format(dateObj(s));
-}
-
-
-function monthName(s){
-  return new Intl.DateTimeFormat(
-    'de-DE',
-    {
-      month:'long'
-    }
-  ).format(dateObj(s));
-}
-
-
-function sum(arr,fn){
-  return arr.reduce(
-    (a,x)=>a+(fn?fn(x):Number(x)||0),
-    0
-  );
-}
-
+function sum(arr,fn){ return arr.reduce((a,x)=>a+(fn?fn(x):Number(x)||0),0); }
 
 function catName(cid){
-  return (
-    state.categories.find(c=>c.id===cid)?.name
-    || 'Gelöschte Kategorie'
-  );
+  return (state.categories.find(c=>c.id===cid)?.name) || 'Gelöschte Kategorie';
 }
 
+function catBudget(cid){
+  return Number(state.categories.find(c=>c.id===cid)?.budget)||0;
+}
+
+function catColorOf(cid){
+  const idx=state.categories.findIndex(x=>x.id===cid);
+  if(idx<0) return '#999999';
+  const c=state.categories[idx];
+  return (c.color && c.color.trim()) ? c.color : autoColorFor(idx);
+}
+
+const colorPalette=['#356ae6','#18864b','#bd7b00','#c43d4b','#7c3aed','#0891b2','#db2777','#65a30d','#ea580c','#4f46e5','#0d9488','#b91c1c'];
+function autoColorFor(idx){
+  return colorPalette[((idx%colorPalette.length)+colorPalette.length)%colorPalette.length];
+}
 
 function catsHtml(ids){
-  return (
-    ids||[]
-  ).map(
-    c=>`<span class="pill">${esc(catName(c))}</span>`
-  ).join('')
-  ||
-  '<span class="pill">ohne Kategorie</span>';
+  return (ids||[]).map(cid=>{
+    const col=catColorOf(cid);
+    const dot=`<span style="display:inline-block;width:7px;height:7px;border-radius:50%;background:${esc(col)};margin-right:4px;vertical-align:middle"></span>`;
+    return `<span class="pill">${dot}${esc(catName(cid))}</span>`;
+  }).join('') || '<span class="pill">ohne Kategorie</span>';
 }
 
+/* =========================
+   THEME
+========================= */
+
+function isDarkActive(){
+  const t=state.settings.theme||'system';
+  if(t==='dark') return true;
+  if(t==='light') return false;
+  return window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+function applyTheme(){
+  const dark=isDarkActive();
+  document.documentElement.setAttribute('data-theme', dark?'dark':'light');
+  const btn=document.getElementById('themeQuickBtn');
+  if(btn) btn.textContent = dark ? '☾' : '☀';
+}
+
+function toggleThemeQuick(){
+  const order=['light','dark','system'];
+  const cur=state.settings.theme||'system';
+  const next=order[(order.indexOf(cur)+1)%order.length];
+  state.settings.theme=next;
+  save();
+  applyTheme();
+  render();
+}
+
+function setTheme(t){
+  state.settings.theme=t;
+  save();
+  applyTheme();
+  render();
+}
+
+if(window.matchMedia){
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', ()=>{
+    if((state.settings.theme||'system')==='system') applyTheme();
+  });
+}
 
 /* =========================
    NAVIGATION
 ========================= */
 
 function navRender(){
-
   const items=[
     ['dashboard','⌂','Übersicht'],
     ['entry','＋','Erfassen'],
     ['calendar','□','Kalender'],
     ['analysis','◫','Auswertung'],
-    ['lists','☷','Listen']
+    ['lists','☰','Verwaltung']
   ];
 
-  document.getElementById('nav').innerHTML=
-    items.map(x=>`
-      <button
-        class="${ui.page===x[0]?'active':''}"
-        onclick="showPage('${x[0]}')"
-      >
-        <b>${x[1]}</b>
-        ${x[2]}
-      </button>
-    `).join('');
+  document.getElementById('nav').innerHTML=items.map(x=>`
+    <button class="${ui.page===x[0]?'active':''}" onclick="showPage('${x[0]}')">
+      <b>${x[1]}</b>${x[2]}
+    </button>
+  `).join('');
 }
-
 
 function showPage(p){
   ui.page=p;
-
   render();
-
-  window.scrollTo({
-    top:0,
-    behavior:'smooth'
-  });
+  window.scrollTo({top:0,behavior:'smooth'});
 }
 
-
 function render(){
-
   navRender();
-
   renderDashboard();
   renderEntry();
   renderCalendar();
   renderAnalysis();
   renderLists();
 
-  document
-    .querySelectorAll('.page')
-    .forEach(e=>e.classList.remove('active'));
-
-  document
-    .getElementById('page-'+ui.page)
-    .classList.add('active');
+  document.querySelectorAll('.page').forEach(e=>e.classList.remove('active'));
+  document.getElementById('page-'+ui.page).classList.add('active');
 }
-
 
 /* =========================
    FINANZBERECHNUNG
 ========================= */
 
 function actualBalance(){
-
   const t=today();
-
-  return (
-    Number(state.settings.openingBalance)||0
-  )
-  +
-  sum(
+  return (Number(state.settings.openingBalance)||0) + sum(
     state.transactions.filter(x=>x.date<=t),
-    x=>x.type==='income'
-      ? Number(x.amount)
-      : -Number(x.amount)
+    x=>x.type==='income' ? Number(x.amount) : -Number(x.amount)
   );
 }
-
 
 function transBetween(a,b){
-  return state.transactions.filter(
-    x=>x.date>=a && x.date<=b
-  );
+  return state.transactions.filter(x=>x.date>=a && x.date<=b);
 }
 
-
 /* =========================
-   WIEDERKEHRENDE POSTEN
+   WIEDERKEHRENDE POSTEN (mit Betragshistorie)
 ========================= */
 
+function amountAt(tpl,date){
+  const hist = (tpl.amountHistory && tpl.amountHistory.length)
+    ? [...tpl.amountHistory].sort((a,b)=>a.validFrom.localeCompare(b.validFrom))
+    : [{amount:tpl.amount, validFrom:tpl.startDate}];
+
+  let cur=hist[0].amount;
+  for(const h of hist){
+    if(h.validFrom<=date) cur=h.amount; else break;
+  }
+  return cur;
+}
+
 function occurrenceDates(tpl,a,b){
-
   const out=[];
-
   let cur=dateObj(tpl.startDate);
-
   const end=dateObj(b);
   const from=dateObj(a);
 
-  if(tpl.recurrence==='manual'){
-    return out;
-  }
+  if(tpl.recurrence==='manual') return out;
 
   if(cur<from){
-
     if(tpl.recurrence==='daily'){
-
       cur=new Date(from);
-
     }else if(tpl.recurrence==='weekly'){
-
-      const diff=Math.floor(
-        (from-cur)/86400000
-      );
-
-      cur.setDate(
-        cur.getDate()+
-        Math.ceil(diff/7)*7
-      );
-
-    }else if(
-      tpl.recurrence==='monthly' ||
-      tpl.recurrence==='quarterly'
-    ){
-
-      let months=
-        (from.getFullYear()-cur.getFullYear())*12+
-        from.getMonth()-cur.getMonth();
-
-      const step=
-        tpl.recurrence==='quarterly'
-        ? 3
-        : 1;
-
-      months=
-        Math.floor(months/step)*step;
-
-      cur=dateObj(
-        addMonths(
-          tpl.startDate,
-          months
-        )
-      );
-
-      while(cur<from){
-        cur=dateObj(
-          addMonths(
-            iso(cur),
-            step
-          )
-        );
-      }
-
+      const diff=Math.floor((from-cur)/86400000);
+      cur.setDate(cur.getDate()+Math.ceil(diff/7)*7);
+    }else if(tpl.recurrence==='monthly' || tpl.recurrence==='quarterly'){
+      let months=(from.getFullYear()-cur.getFullYear())*12+from.getMonth()-cur.getMonth();
+      const step=tpl.recurrence==='quarterly'?3:1;
+      months=Math.floor(months/step)*step;
+      cur=dateObj(addMonths(tpl.startDate,months));
+      while(cur<from){ cur=dateObj(addMonths(iso(cur),step)); }
     }else if(tpl.recurrence==='yearly'){
-
-      let years=
-        from.getFullYear()-
-        cur.getFullYear();
-
-      cur=dateObj(
-        `${cur.getFullYear()+Math.max(0,years)}-`+
-        `${String(cur.getMonth()+1).padStart(2,'0')}-`+
-        `${String(cur.getDate()).padStart(2,'0')}`
-      );
-
+      let years=from.getFullYear()-cur.getFullYear();
+      cur=dateObj(`${cur.getFullYear()+Math.max(0,years)}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`);
       if(cur<from){
-
-        cur=dateObj(
-          `${cur.getFullYear()+1}-`+
-          `${String(cur.getMonth()+1).padStart(2,'0')}-`+
-          `${String(cur.getDate()).padStart(2,'0')}`
-        );
+        cur=dateObj(`${cur.getFullYear()+1}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`);
       }
     }
   }
 
   let guard=0;
-
   while(cur<=end && guard++<5000){
+    if(cur>=from) out.push(iso(cur));
 
-    if(cur>=from){
-      out.push(iso(cur));
-    }
-
-    if(tpl.recurrence==='daily'){
-
-      cur.setDate(cur.getDate()+1);
-
-    }else if(tpl.recurrence==='weekly'){
-
-      cur.setDate(cur.getDate()+7);
-
-    }else if(tpl.recurrence==='monthly'){
-
-      cur=dateObj(
-        addMonths(iso(cur),1)
-      );
-
-    }else if(tpl.recurrence==='quarterly'){
-
-      cur=dateObj(
-        addMonths(iso(cur),3)
-      );
-
-    }else if(tpl.recurrence==='yearly'){
-
-      const m=cur.getMonth()+1;
-      const d=cur.getDate();
-
-      cur=new Date(
-        cur.getFullYear()+1,
-        m-1,
-        d
-      );
-
-    }else{
-
-      break;
-    }
+    if(tpl.recurrence==='daily'){ cur.setDate(cur.getDate()+1); }
+    else if(tpl.recurrence==='weekly'){ cur.setDate(cur.getDate()+7); }
+    else if(tpl.recurrence==='monthly'){ cur=dateObj(addMonths(iso(cur),1)); }
+    else if(tpl.recurrence==='quarterly'){ cur=dateObj(addMonths(iso(cur),3)); }
+    else if(tpl.recurrence==='yearly'){
+      const m=cur.getMonth()+1, d=cur.getDate();
+      cur=new Date(cur.getFullYear()+1,m-1,d);
+    }else{ break; }
   }
 
   return out;
 }
 
-
 function virtualOccurrences(a,b){
-
   const rows=[];
-
-  for(
-    const r of state.recurring.filter(
-      x=>x.active!==false &&
-         x.recurrence!=='manual'
-    )
-  ){
-
-    for(
-      const d of occurrenceDates(r,a,b)
-    ){
-
-      const actual=
-        state.transactions.some(
-          t=>
-            t.recurringTemplateId===r.id &&
-            t.date===d
-        );
-
+  for(const r of state.recurring.filter(x=>x.active!==false && x.recurrence!=='manual')){
+    for(const d of occurrenceDates(r,a,b)){
+      const actual=state.transactions.some(t=>t.recurringTemplateId===r.id && t.date===d);
       if(!actual){
-
         rows.push({
-          id:'v_'+r.id+'_'+d,
-          date:d,
-          type:r.type,
-          amount:Number(r.amount),
-          description:r.name,
-          notes:r.notes||'',
-          categories:r.categories||[],
-          recurringTemplateId:r.id,
-          virtual:true,
-          fixed:r.fixed
+          id:'v_'+r.id+'_'+d, date:d, type:r.type, amount:amountAt(r,d),
+          description:r.name, notes:r.notes||'', categories:r.categories||[],
+          recurringTemplateId:r.id, virtual:true, fixed:r.fixed
         });
       }
     }
   }
-
   return rows;
 }
 
-
 function expectedRows(a,b,type){
-
-  const planned=
-    state.transactions.filter(
-      t=>
-        t.date>=a &&
-        t.date<=b &&
-        (type?t.type===type:true)
-    );
-
-  const virtual=
-    virtualOccurrences(a,b)
-      .filter(
-        t=>type?t.type===type:true
-      );
-
+  const planned=state.transactions.filter(t=>t.date>=a && t.date<=b && (type?t.type===type:true));
+  const virtual=virtualOccurrences(a,b).filter(t=>type?t.type===type:true);
   return planned.concat(virtual);
 }
 
-
 function monthlyEquivalent(r){
-
-  const a=Number(r.amount)||0;
-
+  const a=amountAt(r, today());
   switch(r.recurrence){
-
-    case'daily':
-      return a*365/12;
-
-    case'weekly':
-      return a*52/12;
-
-    case'monthly':
-      return a;
-
-    case'quarterly':
-      return a/3;
-
-    case'yearly':
-      return a/12;
-
-    case'manual':
-      return a*
-        (Number(r.annualOccurrences)||0)/
-        12;
-
-    default:
-      return 0;
+    case'daily': return a*365/12;
+    case'weekly': return a*52/12;
+    case'monthly': return a;
+    case'quarterly': return a/3;
+    case'yearly': return a/12;
+    case'manual': return a*(Number(r.annualOccurrences)||0)/12;
+    default: return 0;
   }
 }
 
-
 function recurringLabel(r){
-
   return ({
-    daily:'täglich',
-    weekly:'wöchentlich',
-    monthly:'monatlich',
-    quarterly:'vierteljährlich',
-    yearly:'jährlich',
-    manual:'unregelmäßig / manuell'
+    daily:'täglich',weekly:'wöchentlich',monthly:'monatlich',
+    quarterly:'vierteljährlich',yearly:'jährlich',manual:'unregelmäßig / manuell'
   })[r.recurrence]||'einmalig';
 }
 
+/* =========================
+   SPARZIELE & RÜCKLAGEN
+========================= */
+
+function goalTotal(g){
+  return sum(g.history, h=>h.kind==='in' ? h.amount : -h.amount);
+}
+
+function goalsGrandTotal(){
+  return sum(state.goals, goalTotal);
+}
+
+function reserveTotal(rid){
+  return sum(state.reserveEntries.filter(e=>e.reserveId===rid), e=>e.kind==='in' ? e.amount : -e.amount);
+}
+
+function reservesGrandTotal(){
+  return sum(state.reserves, r=>reserveTotal(r.id));
+}
+
+function reservesTotalAt(date){
+  return sum(state.reserveEntries.filter(e=>e.date<=date), e=>e.kind==='in'?e.amount:-e.amount);
+}
+
+function goalsTotalAt(date){
+  return sum(state.goals.flatMap(g=>g.history), h=>h.date<=date ? (h.kind==='in'?h.amount:-h.amount) : 0);
+}
+
+/* Kernkennzahl: Frei verfügbar bis Monatsende */
+function freiVerfuegbar(){
+  const t=today();
+  const mEnd=endMonth(t);
+  return actualBalance()
+    + sum(expectedRows(addDays(t,1),mEnd,'income'), x=>x.amount)
+    - sum(expectedRows(addDays(t,1),mEnd,'expense'), x=>x.amount)
+    - reservesGrandTotal()
+    - goalsGrandTotal();
+}
+
+function light(value,th){
+  if(value>=Number(th.green)) return 'green';
+  if(value>=Number(th.yellow)) return 'yellow';
+  return 'red';
+}
+
+function ampelHtml(label,value,th){
+  return `
+    <div class="statline">
+      <span class="ampel">
+        <span class="light ${light(value,th)}"></span>
+        ${esc(label)}
+      </span>
+      <span><strong>${money(value)}</strong></span>
+    </div>
+  `;
+}
+
+function budgetBarHtml(c,spent){
+  const pct = c.budget>0 ? spent/c.budget*100 : 0;
+  const cls = pct>=100 ? 'over' : pct>=90 ? 'near' : '';
+  const style = cls ? `width:${Math.min(100,pct)}%` : `width:${Math.min(100,pct)}%;background:${esc(catColorOf(c.id))}`;
+  return `
+    <div class="barrow">
+      <div class="barlabel">${esc(c.name)}</div>
+      <div class="bar"><span class="${cls}" style="${style}"></span></div>
+      <div class="barvalue">${money(spent)} / ${money(c.budget)}</div>
+    </div>
+  `;
+}
+
+function spentThisMonthForCat(cid){
+  const ms=startMonth(today()), me=endMonth(today());
+  return sum(transBetween(ms,me).filter(x=>x.type==='expense' && (x.categories||[]).includes(cid)), x=>x.amount);
+}
 
 /* =========================
    DASHBOARD
 ========================= */
 
 function renderDashboard(){
-
-  const el=document.getElementById(
-    'page-dashboard'
-  );
-
+  const el=document.getElementById('page-dashboard');
   const t=today();
-
   const ms=startMonth(t);
   const me=endMonth(t);
-
   const ns=addMonths(ms,1);
   const ne=endMonth(ns);
 
-  const actual=transBetween(ms,t);
+  const actualMonth=transBetween(ms,t);
 
-  const future=
-    expectedRows(
-      addDays(t,1),
-      me,
-      'expense'
-    );
+  const future=expectedRows(addDays(t,1),me,'expense');
+  const next=expectedRows(ns,ne,'expense');
 
-  const futureInc=
-    expectedRows(
-      addDays(t,1),
-      me,
-      'income'
-    );
+  const monthInc=sum(actualMonth.filter(x=>x.type==='income'),x=>x.amount);
+  const monthExp=sum(actualMonth.filter(x=>x.type==='expense'),x=>x.amount);
+  const remain=sum(future,x=>x.amount);
 
-  const next=
-    expectedRows(
-      ns,
-      ne,
-      'expense'
-    );
+  const verfuegbar=freiVerfuegbar();
 
-  const monthInc=
-    sum(
-      actual.filter(x=>x.type==='income'),
-      x=>x.amount
-    );
-
-  const monthExp=
-    sum(
-      actual.filter(x=>x.type==='expense'),
-      x=>x.amount
-    );
-
-  const remain=
-    sum(future,x=>x.amount);
-
-  const remainInc=
-    sum(futureInc,x=>x.amount);
-
-  const adjusted=
-    actualBalance()+
-    remainInc-
-    remain;
-
-  const recent=[
-    ...state.transactions
-  ]
-  .sort(
-    (a,b)=>b.date.localeCompare(a.date)
-  )
-  .slice(0,8);
+  const recent=[...state.transactions].sort((a,b)=>b.date.localeCompare(a.date)).slice(0,8);
 
   el.innerHTML=`
-
     <div class="section-title">
-
       <div>
         <h2>Übersicht</h2>
-        <div class="muted">
-          ${esc(fmtDate(t))}
-        </div>
+        <div class="muted">${esc(fmtDate(t))}</div>
       </div>
-
-      <button
-        class="btn small"
-        onclick="openTransaction('expense')"
-      >
-        ＋ Ausgabe
-      </button>
-
+      <button class="btn small" onclick="openTransaction('expense')">＋ Ausgabe</button>
     </div>
 
+    <div class="hero">
+      <div class="herotop">
+        <span>Frei verfügbar · bis Monatsende</span>
+        <span class="herodot ${light(verfuegbar,state.settings.ampel.available)}"></span>
+      </div>
+      <div class="heroval">${money(verfuegbar)}</div>
+      <div class="herosub">IST-Stand, inkl. erwarteter Ein-/Ausgaben, abzüglich Rücklagen &amp; Sparziele</div>
+    </div>
 
     <div class="grid cards">
-
       <div class="card metric">
         <div class="label">IST-Stand</div>
-
-        <div class="value ${
-          actualBalance()>=0
-          ?'positive'
-          :'negative'
-        }">
-          ${money(actualBalance())}
-        </div>
-
-        <div class="sub">
-          erfasst bis heute
-        </div>
+        <div class="value ${actualBalance()>=0?'positive':'negative'}">${money(actualBalance())}</div>
+        <div class="sub">erfasst bis heute</div>
       </div>
-
 
       <div class="card metric">
-        <div class="label">
-          ${esc(monthName(t))} Ausgaben
-        </div>
-
-        <div class="value negative">
-          ${money(monthExp)}
-        </div>
-
-        <div class="sub">
-          Einnahmen: ${money(monthInc)}
-        </div>
+        <div class="label">Einnahmen · ${esc(monthName(t))}</div>
+        <div class="value positive">${money(monthInc)}</div>
+        <div class="sub">bereits erfasst</div>
       </div>
-
 
       <div class="card metric">
-        <div class="label">
-          Noch bis Monatsende
-        </div>
-
-        <div class="value warning">
-          ${money(remain)}
-        </div>
-
-        <div class="sub">
-          erwartete Ausgaben
-        </div>
+        <div class="label">Ausgaben · ${esc(monthName(t))}</div>
+        <div class="value negative">${money(monthExp)}</div>
+        <div class="sub">bereits erfasst</div>
       </div>
-
 
       <div class="card metric">
-        <div class="label">
-          Bereinigter Stand
-        </div>
-
-        <div class="value ${
-          adjusted>=0
-          ?'positive'
-          :'negative'
-        }">
-          ${money(adjusted)}
-        </div>
-
-        <div class="sub">
-          inkl. erwarteter Einnahmen
-        </div>
+        <div class="label">Noch erwartet</div>
+        <div class="value warning">${money(remain)}</div>
+        <div class="sub">Ausgaben bis Monatsende</div>
       </div>
-
     </div>
-
 
     <div class="quick">
-
-      <button
-        class="btn"
-        onclick="openTransaction('income')"
-      >
-        ＋ Einnahme erfassen
-      </button>
-
-      <button
-        class="btn secondary"
-        onclick="openTransaction('expense')"
-      >
-        ＋ Ausgabe erfassen
-      </button>
-
+      <button class="btn" onclick="openTransaction('income')">＋ Einnahme erfassen</button>
+      <button class="btn secondary" onclick="openTransaction('expense')">＋ Ausgabe erfassen</button>
     </div>
 
+    ${upcomingAmountChangesHtml()}
+
+    ${favoritesChipsHtml()}
+
+    ${budgetWarningsHtml(ms,t)}
+
+    ${goalsWidgetHtml()}
+
+    ${reservesWidgetHtml()}
 
     <div class="grid split">
-
       <div class="card">
-
-        <div class="section-title">
-          <h2>Noch im aktuellen Monat</h2>
-        </div>
-
-        ${
-          future.length
-          ?
-          `<div class="list">
-            ${future
-              .slice(0,8)
-              .map(rowHtml)
-              .join('')}
-          </div>
-
-          ${
-            future.length>8
-            ?
-            `<p class="note">
-              + ${future.length-8} weitere
-            </p>`
-            :''
-          }`
-
-          :
-          `<div class="empty">
-            Keine weiteren Ausgaben geplant.
-          </div>`
-        }
-
+        <div class="section-title"><h2>Noch im aktuellen Monat</h2></div>
+        ${future.length ? `
+          <div class="list">${future.slice(0,8).map(rowHtml).join('')}</div>
+          ${future.length>8 ? `<p class="note">+ ${future.length-8} weitere</p>` : ''}
+        ` : `<div class="empty">Keine weiteren Ausgaben geplant.</div>`}
       </div>
 
-
       <div class="card">
-
-        <div class="section-title">
-          <h2>
-            Ausblick ${esc(monthName(ns))}
-          </h2>
-        </div>
-
-        ${
-          next.length
-          ?
-          `<div class="list">
-            ${next
-              .slice(0,8)
-              .map(rowHtml)
-              .join('')}
-          </div>`
-
-          :
-          `<div class="empty">
-            Keine erwarteten Ausgaben hinterlegt.
-          </div>`
-        }
-
+        <div class="section-title"><h2>Ausblick ${esc(monthName(ns))}</h2></div>
+        ${next.length ? `
+          <div class="list">${next.slice(0,8).map(rowHtml).join('')}</div>
+        ` : `<div class="empty">Keine erwarteten Ausgaben hinterlegt.</div>`}
       </div>
-
     </div>
-
 
     <div class="card" style="margin-top:12px">
-
       <div class="section-title">
-
         <h2>Letzte Buchungen</h2>
-
-        <button
-          class="btn small secondary"
-          onclick="showPage('entry')"
-        >
-          Alle anzeigen
-        </button>
-
+        <button class="btn small secondary" onclick="showPage('entry')">Alle anzeigen</button>
       </div>
-
-      ${
-        recent.length
-        ?
-        `<div class="list">
-          ${recent.map(rowHtml).join('')}
-        </div>`
-        :
-        `<div class="empty">
-          Noch keine Buchungen.
-        </div>`
-      }
-
+      ${recent.length ? `<div class="list">${recent.map(rowHtml).join('')}</div>` : `<div class="empty">Noch keine Buchungen.</div>`}
     </div>
   `;
 }
 
+function upcomingAmountChangesHtml(){
+  const t=today();
+  const rows=[];
 
-function rowHtml(x){
+  for(const r of state.recurring){
+    const hist=(r.amountHistory||[]).slice().sort((a,b)=>a.validFrom.localeCompare(b.validFrom));
+    const future=hist.find(h=>h.validFrom>t);
+    if(future){
+      rows.push({ name:r.name, from:amountAt(r,t), to:future.amount, date:future.validFrom });
+    }
+  }
+
+  if(!rows.length) return '';
+
+  rows.sort((a,b)=>a.date.localeCompare(b.date));
 
   return `
-    <div class="row ${x.type}">
-
-      <div class="row-main">
-
-        <div class="row-title">
-          <span class="dot"></span>
-          ${esc(x.description||'Ohne Bezeichnung')}
+    <div class="card" style="margin-bottom:12px">
+      <div class="section-title"><h2>Anstehende Änderungen</h2></div>
+      ${rows.map(x=>`
+        <div class="statline">
+          <span>${esc(x.name)} · ab ${esc(fmtDate(x.date))}</span>
+          <strong>${money(x.from)} → ${money(x.to)}</strong>
         </div>
-
-        <div class="row-sub">
-          ${esc(fmtDate(x.date))}
-          ·
-          ${catsHtml(x.categories)}
-        </div>
-
-      </div>
-
-
-      <div class="row-right">
-
-        <div class="amount ${
-          x.type==='income'
-          ?'positive'
-          :'negative'
-        }">
-
-          ${
-            x.type==='income'
-            ?'+'
-            :'−'
-          }
-
-          ${money(x.amount)}
-
-        </div>
-
-        ${
-          x.virtual
-          ?
-          `<div class="row-sub">
-            wiederkehrend
-          </div>`
-          :''
-        }
-
-      </div>
-
+      `).join('')}
     </div>
   `;
 }
 
+function budgetWarningsHtml(ms,t){
+  const budgeted=state.categories.filter(c=>c.budget>0);
+  if(!budgeted.length) return '';
+
+  const spentMap={};
+  for(const x of transBetween(ms,t).filter(x=>x.type==='expense')){
+    for(const c of x.categories||[]) spentMap[c]=(spentMap[c]||0)+Number(x.amount);
+  }
+
+  const rows=budgeted
+    .map(c=>({cat:c, spent:spentMap[c.id]||0, pct:c.budget>0?(spentMap[c.id]||0)/c.budget*100:0}))
+    .filter(r=>r.pct>=70)
+    .sort((a,b)=>b.pct-a.pct);
+
+  if(!rows.length) return '';
+
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="section-title"><h2>Budget-Hinweise</h2></div>
+      ${rows.map(r=>budgetBarHtml(r.cat,r.spent)).join('')}
+    </div>
+  `;
+}
+
+function goalsWidgetHtml(){
+  if(!state.goals.length) return '';
+
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="section-title">
+        <h2>Sparziele</h2>
+        <button class="btn small secondary" onclick="showPage('lists')">Verwalten</button>
+      </div>
+      ${state.goals.slice(0,4).map(goalRowHtml).join('')}
+    </div>
+  `;
+}
+
+function goalRowHtml(g){
+  const total=goalTotal(g);
+  const pct = g.targetAmount>0 ? Math.min(100, total/g.targetAmount*100) : 0;
+  return `
+    <div class="goalrow">
+      <div class="goaltop">
+        <span class="goalname">${esc(g.name)}</span>
+        <span class="goalpct">${pct.toFixed(0)}%</span>
+      </div>
+      <div class="bar"><span style="width:${pct}%"></span></div>
+      <div class="row-sub" style="margin-top:7px">
+        ${money(total)} von ${money(g.targetAmount)}
+        ${g.targetDate ? ' · Ziel: '+esc(fmtDate(g.targetDate)) : ''}
+      </div>
+    </div>
+  `;
+}
+
+function reservesWidgetHtml(){
+  if(!state.reserves.length) return '';
+
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="section-title">
+        <h2>Rücklagen</h2>
+        <button class="btn small secondary" onclick="showPage('lists')">Verwalten</button>
+      </div>
+      ${state.reserves.map(r=>`
+        <div class="statline"><span>${esc(r.name)}</span><strong>${money(reserveTotal(r.id))}</strong></div>
+      `).join('')}
+      <div class="statline"><strong>Gesamt reserviert</strong><strong>${money(reservesGrandTotal())}</strong></div>
+    </div>
+  `;
+}
+
+function favoritesChipsHtml(){
+  if(!state.favorites.length) return '';
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="section-title">
+        <h2>Schnelleingabe</h2>
+        <button class="btn small secondary" onclick="showPage('lists')">Verwalten</button>
+      </div>
+      <div class="chips">
+        ${state.favorites.map(f=>`
+          <button class="chip" onclick="openTransaction('${f.type}',null,today(),'${f.id}')">
+            ${f.type==='income'?'＋':'－'} ${esc(f.name)} · ${money(f.amount)}
+          </button>
+        `).join('')}
+      </div>
+    </div>
+  `;
+}
+
+function rowHtml(x){
+  return `
+    <div class="row ${x.type}">
+      <div class="row-main">
+        <div class="row-title"><span class="dot"></span>${esc(x.description||'Ohne Bezeichnung')}</div>
+        <div class="row-sub">${esc(fmtDate(x.date))} · ${catsHtml(x.categories)}</div>
+      </div>
+      <div class="row-right">
+        <div class="amount ${x.type==='income'?'positive':'negative'}">
+          ${x.type==='income'?'+':'−'}${money(x.amount)}
+        </div>
+        ${x.virtual ? `<div class="row-sub">wiederkehrend</div>` : ''}
+      </div>
+    </div>
+  `;
+}
 
 /* =========================
-   BUCHUNGEN
+   BUCHUNGEN (ERFASSEN)
 ========================= */
 
 function renderEntry(){
+  const el=document.getElementById('page-entry');
 
-  const el=document.getElementById(
-    'page-entry'
-  );
-
-  const sorted=[
-    ...state.transactions
-  ].sort(
-    (a,b)=>b.date.localeCompare(a.date)
-  );
+  const txRows=state.transactions.map(x=>({key:x.date+'_a_'+x.id, kind:'tx', data:x}));
+  const resRows=state.reserveEntries.map(x=>({key:x.date+'_b_'+x.id, kind:'res', data:x}));
+  const combined=[...txRows,...resRows].sort((a,b)=>b.key.localeCompare(a.key));
 
   el.innerHTML=`
-
     <div class="section-title">
-
       <div>
         <h2>Erfassen</h2>
-        <div class="muted">
-          Buchungen jederzeit korrigieren.
-        </div>
+        <div class="muted">Buchungen jederzeit korrigieren.</div>
       </div>
-
       <div class="toolbar">
-
-        <button
-          class="btn small"
-          onclick="openTransaction('income')"
-        >
-          ＋ Einnahme
-        </button>
-
-        <button
-          class="btn small secondary"
-          onclick="openTransaction('expense')"
-        >
-          ＋ Ausgabe
-        </button>
-
+        <button class="btn small" onclick="openTransaction('income')">＋ Einnahme</button>
+        <button class="btn small secondary" onclick="openTransaction('expense')">＋ Ausgabe</button>
       </div>
-
     </div>
 
+    ${favoritesChipsHtml()}
 
-    <div
-      class="card"
-      style="margin-bottom:12px"
-    >
-
+    <div class="card" style="margin-bottom:12px">
       <div class="toolbar">
-
-        <input
-          id="entrySearch"
-          placeholder="Buchungen suchen …"
-          oninput="filterEntries()"
-        >
-
-        <select
-          id="entryType"
-          onchange="filterEntries()"
-        >
+        <input id="entrySearch" placeholder="Buchungen suchen …" oninput="filterEntries()">
+        <select id="entryType" onchange="filterEntries()">
           <option value="all">Alle</option>
           <option value="income">Einnahmen</option>
           <option value="expense">Ausgaben</option>
+          <option value="reserve">Rücklagen</option>
         </select>
-
       </div>
-
+      <div class="note" style="margin-top:8px">Antippen zum Bearbeiten · nach links wischen zum Löschen</div>
     </div>
 
-
-    <div
-      id="entryList"
-      class="list"
-    >
-
-      ${
-        sorted.length
-        ?
-        sorted.map(transactionRow).join('')
-        :
-        `<div class="empty">
-          Noch keine Buchungen.
-          Mit „Einnahme“ oder „Ausgabe“ starten.
-        </div>`
-      }
-
+    <div id="entryList" class="list">
+      ${combined.length
+        ? combined.map(r=> r.kind==='tx' ? transactionRow(r.data) : reserveEntryRow(r.data)).join('')
+        : `<div class="empty">Noch keine Buchungen. Mit „Einnahme" oder „Ausgabe" starten.</div>`}
     </div>
   `;
 }
-
 
 function transactionRow(x){
-
   return `
-    <div
-      class="row"
-      data-search="${esc(
-        (x.description||'')+' '+
-        (x.notes||'')+' '+
-        (x.date||'')+' '+
-        (x.categories||[])
-          .map(catName)
-          .join(' ')
-      )}"
-      data-type="${x.type}"
-    >
-
-      <div class="row-main">
-
-        <div class="row-title">
-          ${
-            x.type==='income'
-            ?'＋'
-            :'−'
-          }
-          ${esc(
-            x.description||
-            'Ohne Bezeichnung'
-          )}
+    <div class="swiperow">
+      <button class="swipe-del" onclick="deleteTransaction('${x.id}')">Löschen</button>
+      <div class="row" data-search="${esc((x.description||'')+' '+(x.notes||'')+' '+(x.date||'')+' '+(x.categories||[]).map(catName).join(' '))}" data-type="${x.type}"
+           ontouchstart="swipeStart(event,this)" ontouchmove="swipeMove(event,this)" ontouchend="swipeEnd(event,this)"
+           onclick="swipeRowClick(event,this,()=>openTransaction('${x.type}','${x.id}'))">
+        <div class="row-main">
+          <div class="row-title">${x.type==='income'?'＋':'−'} ${esc(x.description||'Ohne Bezeichnung')}</div>
+          <div class="row-sub">
+            ${esc(fmtDate(x.date))} · ${catsHtml(x.categories)}
+            ${x.notes ? `<br>${esc(x.notes)}` : ''}
+          </div>
         </div>
-
-        <div class="row-sub">
-
-          ${esc(fmtDate(x.date))}
-          ·
-          ${catsHtml(x.categories)}
-
-          ${
-            x.notes
-            ?
-            `<br>${esc(x.notes)}`
-            :''
-          }
-
+        <div class="row-right">
+          <div class="amount ${x.type==='income'?'positive':'negative'}">
+            ${x.type==='income'?'+':'−'}${money(x.amount)}
+          </div>
         </div>
-
       </div>
-
-
-      <div class="row-right">
-
-        <div class="amount ${
-          x.type==='income'
-          ?'positive'
-          :'negative'
-        }">
-
-          ${
-            x.type==='income'
-            ?'+'
-            :'−'
-          }
-
-          ${money(x.amount)}
-
-        </div>
-
-        <div
-          class="toolbar"
-          style="justify-content:flex-end;margin-top:5px"
-        >
-
-          <button
-            class="btn small secondary"
-            onclick="openTransaction(
-              '${x.type}',
-              '${x.id}'
-            )"
-          >
-            Bearbeiten
-          </button>
-
-          <button
-            class="btn small danger"
-            onclick="deleteTransaction('${x.id}')"
-          >
-            Löschen
-          </button>
-
-        </div>
-
-      </div>
-
     </div>
   `;
 }
 
-
-function filterEntries(){
-
-  const q=(
-    document.getElementById(
-      'entrySearch'
-    )?.value||''
-  ).toLowerCase();
-
-  const ty=
-    document.getElementById(
-      'entryType'
-    )?.value||'all';
-
-  document
-    .querySelectorAll('#entryList .row')
-    .forEach(r=>{
-
-      r.style.display=
-        (
-          (!q ||
-            r.dataset.search
-              .toLowerCase()
-              .includes(q)
-          )
-          &&
-          (
-            ty==='all' ||
-            r.dataset.type===ty
-          )
-        )
-        ?
-        'flex'
-        :
-        'none';
-    });
+function reserveEntryRow(x){
+  const r=state.reserves.find(rr=>rr.id===x.reserveId);
+  const label=r ? r.name : 'gelöschte Rücklage';
+  return `
+    <div class="swiperow">
+      <button class="swipe-del" onclick="deleteReserveEntry('${x.id}')">Löschen</button>
+      <div class="row" data-search="${esc('rücklage '+label+' '+(x.note||''))}" data-type="reserve"
+           ontouchstart="swipeStart(event,this)" ontouchmove="swipeMove(event,this)" ontouchend="swipeEnd(event,this)"
+           onclick="swipeRowClick(event,this,()=>editReserveEntry('${x.id}'))">
+        <div class="row-main">
+          <div class="row-title">${x.kind==='in'?'＋':'－'} Rücklage: ${esc(label)}</div>
+          <div class="row-sub">${esc(fmtDate(x.date))}${x.note?' · '+esc(x.note):''}</div>
+        </div>
+        <div class="row-right">
+          <div class="amount" style="color:var(--accent)">${x.kind==='in'?'+':'−'}${money(x.amount)}</div>
+        </div>
+      </div>
+    </div>
+  `;
 }
 
+function filterEntries(){
+  const q=(document.getElementById('entrySearch')?.value||'').toLowerCase();
+  const ty=document.getElementById('entryType')?.value||'all';
+
+  document.querySelectorAll('#entryList .row').forEach(r=>{
+    r.style.display=(
+      (!q || r.dataset.search.toLowerCase().includes(q)) &&
+      (ty==='all' || r.dataset.type===ty)
+    ) ? 'flex' : 'none';
+  });
+}
 
 /* =========================
    KALENDER
 ========================= */
 
 function renderCalendar(){
-
-  const el=document.getElementById(
-    'page-calendar'
-  );
-
+  const el=document.getElementById('page-calendar');
   const base=ui.cal;
-
-  const first=new Date(
-    base.getFullYear(),
-    base.getMonth(),
-    1
-  );
-
-  const last=new Date(
-    base.getFullYear(),
-    base.getMonth()+1,
-    0
-  );
-
-  const start=
-    (first.getDay()+6)%7;
-
+  const first=new Date(base.getFullYear(),base.getMonth(),1);
+  const last=new Date(base.getFullYear(),base.getMonth()+1,0);
+  const start=(first.getDay()+6)%7;
   const end=last.getDate();
-
   const cells=[];
 
   for(let i=0;i<start;i++){
-
-    const d=new Date(first);
-
-    d.setDate(
-      d.getDate()-start+i
-    );
-
-    cells.push(
-      dayCell(d,true)
-    );
+    const d=new Date(first); d.setDate(d.getDate()-start+i);
+    cells.push(dayCell(d,true));
   }
-
-  for(
-    let d=1;
-    d<=end;
-    d++
-  ){
-
-    cells.push(
-      dayCell(
-        new Date(
-          base.getFullYear(),
-          base.getMonth(),
-          d
-        ),
-        false
-      )
-    );
+  for(let d=1;d<=end;d++){
+    cells.push(dayCell(new Date(base.getFullYear(),base.getMonth(),d),false));
   }
-
   while(cells.length<42){
-
-    const d=new Date(last);
-
-    d.setDate(
-      d.getDate()+
-      cells.length-
-      (start+end)+1
-    );
-
-    cells.push(
-      dayCell(d,true)
-    );
+    const d=new Date(last); d.setDate(d.getDate()+cells.length-(start+end)+1);
+    cells.push(dayCell(d,true));
   }
 
   el.innerHTML=`
-
     <div class="section-title">
-
       <div>
         <h2>Kalender</h2>
-        <div class="muted">
-          Buchungen nach Datum
-        </div>
+        <div class="muted">Buchungen nach Datum</div>
       </div>
-
-      <button
-        class="btn small"
-        onclick="openTransaction(
-          'expense',
-          null,
-          today()
-        )"
-      >
-        ＋ heute
-      </button>
-
+      <button class="btn small" onclick="openTransaction('expense',null,today())">＋ heute</button>
     </div>
-
 
     <div class="calendar">
-
       <div class="calhead">
-
-        <button
-          class="btn small secondary"
-          onclick="changeCal(-1)"
-        >
-          ‹
-        </button>
-
-        <strong>
-          ${esc(fmtMonth(first))}
-        </strong>
-
+        <button class="btn small secondary" onclick="changeCal(-1)">‹</button>
+        <strong>${esc(fmtMonth(first))}</strong>
         <div class="toolbar">
-
-          <button
-            class="btn small secondary"
-            onclick="goCalToday()"
-          >
-            Heute
-          </button>
-
-          <button
-            class="btn small secondary"
-            onclick="changeCal(1)"
-          >
-            ›
-          </button>
-
+          <button class="btn small secondary" onclick="goCalToday()">Heute</button>
+          <button class="btn small secondary" onclick="changeCal(1)">›</button>
         </div>
-
       </div>
-
-
-      <div class="week">
-
-        ${
-          ['Mo','Di','Mi','Do','Fr','Sa','So']
-          .map(x=>`<div>${x}</div>`)
-          .join('')
-        }
-
-      </div>
-
-
-      <div class="days">
-        ${cells.join('')}
-      </div>
-
+      <div class="week">${['Mo','Di','Mi','Do','Fr','Sa','So'].map(x=>`<div>${x}</div>`).join('')}</div>
+      <div class="days">${cells.join('')}</div>
     </div>
 
+    <div class="toolbar" style="margin-top:10px;justify-content:center;gap:16px">
+      <span class="row-sub"><span class="dot" style="background:var(--good)"></span>Einnahme</span>
+      <span class="row-sub"><span class="dot" style="background:var(--bad)"></span>Ausgabe</span>
+      <span class="row-sub"><span class="dot" style="background:var(--accent)"></span>Rücklage</span>
+    </div>
 
-    <div
-      id="dayDetail"
-      style="margin-top:12px"
-    ></div>
+    <div id="dayDetail" style="margin-top:12px"></div>
   `;
+
+  if(ui.calSelectedDay) dayDetail(ui.calSelectedDay);
 }
 
-
 function dayCell(d,muted){
-
   const s=iso(d);
-
-  const ts=
-    state.transactions.filter(
-      x=>x.date===s
-    );
-
-  const inc=
-    sum(
-      ts.filter(x=>x.type==='income'),
-      x=>x.amount
-    );
-
-  const exp=
-    sum(
-      ts.filter(x=>x.type==='expense'),
-      x=>x.amount
-    );
+  const ts=state.transactions.filter(x=>x.date===s);
+  const rs=state.reserveEntries.filter(x=>x.date===s);
+  const inc=sum(ts.filter(x=>x.type==='income'),x=>x.amount);
+  const exp=sum(ts.filter(x=>x.type==='expense'),x=>x.amount);
 
   return `
-    <button
-      class="day ${
-        muted?'mutedday':''
-      } ${
-        s===today()?'today':''
-      }"
-      onclick="dayDetail('${s}')"
-    >
-
-      <div class="daynum">
-        ${d.getDate()}
-      </div>
-
+    <button class="day ${muted?'mutedday':''} ${s===today()?'today':''}" onclick="dayDetail('${s}')">
+      <div class="daynum">${d.getDate()}</div>
       <div class="marks">
-
-        ${
-          inc
-          ?'<span class="mark i"></span>'
-          :''
-        }
-
-        ${
-          exp
-          ?'<span class="mark e"></span>'
-          :''
-        }
-
+        ${inc?'<span class="mark i"></span>':''}
+        ${exp?'<span class="mark e"></span>':''}
+        ${rs.length?'<span class="mark r"></span>':''}
       </div>
-
       <div class="daytotal">
-
-        ${
-          inc
-          ?'+'+money(inc)
-          :''
-        }
-
-        ${
-          exp
-          ?' −'+money(exp)
-          :''
-        }
-
+        ${inc?'+'+money(inc):''}${exp?' −'+money(exp):''}
       </div>
-
     </button>
   `;
 }
 
-
 function changeCal(n){
-
-  ui.cal=new Date(
-    ui.cal.getFullYear(),
-    ui.cal.getMonth()+n,
-    1
-  );
-
+  ui.cal=new Date(ui.cal.getFullYear(),ui.cal.getMonth()+n,1);
   renderCalendar();
 }
 
-
-function goCalToday(){
-
-  ui.cal=new Date();
-
-  renderCalendar();
-}
-
+function goCalToday(){ ui.cal=new Date(); renderCalendar(); }
 
 function dayDetail(s){
-
-  const el=
-    document.getElementById(
-      'dayDetail'
-    );
-
-  const rows=
-    state.transactions.filter(
-      x=>x.date===s
-    );
+  ui.calSelectedDay=s;
+  const el=document.getElementById('dayDetail');
+  const rows=state.transactions.filter(x=>x.date===s);
+  const resRows=state.reserveEntries.filter(x=>x.date===s);
+  const total=rows.length+resRows.length;
 
   el.innerHTML=`
-
     <div class="card">
-
       <div class="section-title">
-
         <div>
-
-          <h2>
-            ${esc(fmtDate(s))}
-          </h2>
-
-          <div class="muted">
-            ${rows.length}
-            Buchung${rows.length===1?'':'en'}
-          </div>
-
+          <h2>${esc(fmtDate(s))}</h2>
+          <div class="muted">${total} Buchung${total===1?'':'en'}</div>
         </div>
-
-
         <div class="toolbar">
-
-          <button
-            class="btn small"
-            onclick="openTransaction(
-              'income',
-              null,
-              '${s}'
-            )"
-          >
-            ＋ Einnahme
-          </button>
-
-          <button
-            class="btn small secondary"
-            onclick="openTransaction(
-              'expense',
-              null,
-              '${s}'
-            )"
-          >
-            ＋ Ausgabe
-          </button>
-
+          <button class="btn small" onclick="openTransaction('income',null,'${s}')">＋ Einnahme</button>
+          <button class="btn small secondary" onclick="openTransaction('expense',null,'${s}')">＋ Ausgabe</button>
         </div>
-
       </div>
-
-
-      ${
-        rows.length
-        ?
-        `<div class="list">
-          ${rows
-            .map(transactionRow)
-            .join('')}
-        </div>`
-        :
-        `<div class="empty">
-          Keine Buchungen an diesem Tag.
-        </div>`
-      }
-
+      ${total ? `<div class="list">
+        ${rows.map(transactionRow).join('')}
+        ${resRows.map(reserveEntryRow).join('')}
+      </div>` : `<div class="empty">Keine Buchungen an diesem Tag.</div>`}
     </div>
   `;
 }
-
 
 /* =========================
    AUSWERTUNGEN
 ========================= */
 
 function periodRange(){
-
-  const d=dateObj(
-    ui.analysisDate
-  );
+  const d=dateObj(ui.analysisDate);
 
   if(ui.analysisPeriod==='year'){
-
-    return [
-      `${d.getFullYear()}-01-01`,
-      `${d.getFullYear()}-12-31`
-    ];
+    return [`${d.getFullYear()}-01-01`, `${d.getFullYear()}-12-31`];
   }
-
   if(ui.analysisPeriod==='quarter'){
-
-    const q=Math.floor(
-      d.getMonth()/3
-    );
-
+    const q=Math.floor(d.getMonth()/3);
     const m=q*3;
-
-    return [
-      iso(
-        new Date(
-          d.getFullYear(),
-          m,
-          1
-        )
-      ),
-      iso(
-        new Date(
-          d.getFullYear(),
-          m+3,
-          0
-        )
-      )
-    ];
+    return [iso(new Date(d.getFullYear(),m,1)), iso(new Date(d.getFullYear(),m+3,0))];
   }
-
-  return [
-    startMonth(d),
-    endMonth(d)
-  ];
+  if(ui.analysisPeriod==='rolling365'){
+    return [addDays(today(),-364), today()];
+  }
+  if(ui.analysisPeriod==='all'){
+    return [earliestDataDate(), today()];
+  }
+  return [startMonth(d), endMonth(d)];
 }
 
+function earliestDataDate(){
+  if(!state.transactions.length) return today();
+  return state.transactions.reduce((a,x)=> x.date<a ? x.date : a, state.transactions[0].date);
+}
+
+function comparisonRange(){
+  if(ui.analysisPeriod==='all') return null;
+  const [a]=periodRange();
+
+  if(ui.analysisPeriod==='month'){
+    const pa=addMonths(a,-1);
+    return [pa, endMonth(pa)];
+  }
+  if(ui.analysisPeriod==='quarter'){
+    const pa=addMonths(a,-3);
+    return [pa, addDays(a,-1)];
+  }
+  if(ui.analysisPeriod==='year'){
+    const y=Number(a.slice(0,4))-1;
+    return [`${y}-01-01`, `${y}-12-31`];
+  }
+  if(ui.analysisPeriod==='rolling365'){
+    const pb=addDays(a,-1);
+    return [addDays(pb,-364), pb];
+  }
+  return null;
+}
+
+function deltaBadge(current,previous,goodWhenUp){
+  if(previous===0 && current===0) return '';
+  const diff=current-previous;
+  const pct = previous!==0 ? (diff/Math.abs(previous)*100) : 100;
+  const up=diff>0;
+  const good = diff===0 ? null : (goodWhenUp ? up : !up);
+  const color = good===null ? 'var(--muted)' : (good?'var(--good)':'var(--bad)');
+  const sign = diff>0?'+':'';
+  return `<div class="sub" style="color:${color}">vs. Vorperiode: ${sign}${money(diff)} (${sign}${pct.toFixed(0)}%)</div>`;
+}
+
+function splitExpenseTotals(rows){
+  const map={};
+  for(const x of rows.filter(x=>x.type==='expense')){
+    const cats=(x.categories && x.categories.length) ? x.categories : ['__none__'];
+    const share=x.amount/cats.length;
+    for(const c of cats) map[c]=(map[c]||0)+share;
+  }
+  return map;
+}
+
+function splitCatLabel(cid){
+  return cid==='__none__' ? 'Ohne Kategorie' : catName(cid);
+}
 
 function renderAnalysis(){
-
-  const el=
-    document.getElementById(
-      'page-analysis'
-    );
-
+  saveUiPrefs();
+  const el=document.getElementById('page-analysis');
   const [a,b]=periodRange();
+  const rows=state.transactions.filter(x=>x.date>=a && x.date<=b);
 
-  const rows=
-    state.transactions.filter(
-      x=>x.date>=a && x.date<=b
+  const filtered=rows.filter(x=>
+    (ui.analysisType==='all' || x.type===ui.analysisType) &&
+    (!ui.analysisFixed || state.recurring.some(r=>r.id===x.recurringTemplateId && r.fixed))
+  );
+
+  const inc=sum(filtered.filter(x=>x.type==='income'),x=>x.amount);
+  const exp=sum(filtered.filter(x=>x.type==='expense'),x=>x.amount);
+
+  const comp=comparisonRange();
+  let compInc=0, compExp=0;
+  if(comp){
+    const compRows=state.transactions.filter(x=>x.date>=comp[0] && x.date<=comp[1]).filter(x=>
+      (ui.analysisType==='all' || x.type===ui.analysisType) &&
+      (!ui.analysisFixed || state.recurring.some(r=>r.id===x.recurringTemplateId && r.fixed))
     );
-
-  const filtered=
-    rows.filter(
-      x=>
-        (
-          ui.analysisType==='all' ||
-          x.type===ui.analysisType
-        )
-        &&
-        (
-          !ui.analysisFixed ||
-          state.recurring.some(
-            r=>
-              r.id===x.recurringTemplateId &&
-              r.fixed
-          )
-        )
-    );
-
-  const inc=
-    sum(
-      filtered.filter(
-        x=>x.type==='income'
-      ),
-      x=>x.amount
-    );
-
-  const exp=
-    sum(
-      filtered.filter(
-        x=>x.type==='expense'
-      ),
-      x=>x.amount
-    );
-
-  const catMap={};
-
-  for(
-    const x of filtered.filter(
-      x=>x.type==='expense'
-    )
-  ){
-
-    for(
-      const c of x.categories||[]
-    ){
-
-      catMap[c]=
-        (catMap[c]||0)+
-        Number(x.amount);
-    }
+    compInc=sum(compRows.filter(x=>x.type==='income'),x=>x.amount);
+    compExp=sum(compRows.filter(x=>x.type==='expense'),x=>x.amount);
   }
 
-  const cats=
-    Object.entries(catMap)
-      .sort(
-        (a,b)=>b[1]-a[1]
-      );
+  const catMap={};
+  for(const x of filtered.filter(x=>x.type==='expense')){
+    for(const c of x.categories||[]) catMap[c]=(catMap[c]||0)+Number(x.amount);
+  }
 
-  const selected=
-    ui.analysisCats.length
-    ?
-    cats.filter(
-      x=>ui.analysisCats.includes(x[0])
-    )
-    :
-    cats;
+  const cats=Object.entries(catMap).sort((a,b)=>b[1]-a[1]);
+  const selected=ui.analysisCats.length ? cats.filter(x=>ui.analysisCats.includes(x[0])) : cats;
+  const totalSelected=sum(selected,x=>x[1]);
 
-  const totalSelected=
-    sum(
-      selected,
-      x=>x[1]
-    );
+  const splitMap=splitExpenseTotals(filtered);
+  const splitEntries=Object.entries(splitMap).sort((a,b)=>b[1]-a[1]);
+  const splitSelected=ui.analysisCats.length ? splitEntries.filter(([cid])=>ui.analysisCats.includes(cid)) : splitEntries;
 
-  const fixed=
-    state.recurring.filter(
-      r=>
-        r.fixed &&
-        r.type==='expense'
-    );
+  const fixed=state.recurring.filter(r=>r.fixed && r.type==='expense');
+  const budgeted=state.categories.filter(c=>c.budget>0);
+  const navigable=['month','quarter','year'].includes(ui.analysisPeriod);
 
   el.innerHTML=`
-
     <div class="section-title">
-
       <div>
-
         <h2>Auswertungen</h2>
-
-        <div class="muted">
-          Alle Analysen getrennt von der Startseite.
-        </div>
-
+        <div class="muted">Alle Analysen getrennt von der Startseite.</div>
       </div>
-
     </div>
-
 
     <div class="tabs">
-
-      ${
-        ['month','quarter','year']
-        .map(
-          p=>`
-            <button
-              class="tab ${
-                ui.analysisPeriod===p
-                ?'active'
-                :''
-              }"
-              onclick="setAnalysisPeriod('${p}')"
-            >
-              ${
-                p==='month'
-                ?'Monat'
-                :
-                p==='quarter'
-                ?'Quartal'
-                :
-                'Jahr'
-              }
-            </button>
-          `
-        )
-        .join('')
-      }
-
+      ${[['month','Monat'],['quarter','Quartal'],['year','Kalenderjahr'],['rolling365','365 Tage'],['all','Gesamt']].map(([p,label])=>`
+        <button class="tab ${ui.analysisPeriod===p?'active':''}" onclick="setAnalysisPeriod('${p}')">${label}</button>
+      `).join('')}
     </div>
-
 
     <div class="card">
-
       <div class="toolbar">
+        ${navigable ? `<button class="btn small secondary" onclick="analysisShift(-1)">‹</button>` : ''}
+        <strong>${esc(periodLabel())}</strong>
+        ${navigable ? `<button class="btn small secondary" onclick="analysisShift(1)">›</button>` : ''}
 
-        <button
-          class="btn small secondary"
-          onclick="analysisShift(-1)"
-        >
-          ‹
-        </button>
+        ${ui.analysisPeriod==='month' ? `<input type="month" value="${isoMonthValue(ui.analysisDate)}" onchange="jumpToMonth(this.value)">` : ''}
+        ${ui.analysisPeriod==='year' ? `<input type="number" style="width:92px" value="${ui.analysisDate.getFullYear()}" onchange="jumpToYear(this.value)">` : ''}
 
-        <strong>
-          ${esc(periodLabel())}
-        </strong>
-
-        <button
-          class="btn small secondary"
-          onclick="analysisShift(1)"
-        >
-          ›
-        </button>
-
-
-        <select
-          onchange="
-            ui.analysisType=this.value;
-            renderAnalysis()
-          "
-        >
-
-          <option
-            value="all"
-            ${
-              ui.analysisType==='all'
-              ?'selected'
-              :''
-            }
-          >
-            Einnahmen + Ausgaben
-          </option>
-
-          <option
-            value="income"
-            ${
-              ui.analysisType==='income'
-              ?'selected'
-              :''
-            }
-          >
-            Nur Einnahmen
-          </option>
-
-          <option
-            value="expense"
-            ${
-              ui.analysisType==='expense'
-              ?'selected'
-              :''
-            }
-          >
-            Nur Ausgaben
-          </option>
-
+        <select onchange="ui.analysisType=this.value; renderAnalysis()">
+          <option value="all" ${ui.analysisType==='all'?'selected':''}>Einnahmen + Ausgaben</option>
+          <option value="income" ${ui.analysisType==='income'?'selected':''}>Nur Einnahmen</option>
+          <option value="expense" ${ui.analysisType==='expense'?'selected':''}>Nur Ausgaben</option>
         </select>
 
-
         <label class="check">
-
-          <input
-            type="checkbox"
-            ${
-              ui.analysisFixed
-              ?'checked'
-              :''
-            }
-            onchange="
-              ui.analysisFixed=this.checked;
-              renderAnalysis()
-            "
-          >
-
+          <input type="checkbox" ${ui.analysisFixed?'checked':''} onchange="ui.analysisFixed=this.checked; renderAnalysis()">
           nur fest/wiederkehrend
-
         </label>
-
       </div>
-
 
       <div style="margin-top:10px">
-
-        <div class="note">
-          Mehrfachkategorien: Ein Betrag wird
-          in jeder zugeordneten Kategorie
-          vollständig berücksichtigt.
+        <div class="note">Mehrfachkategorien: Ein Betrag wird in jeder zugeordneten Kategorie vollständig berücksichtigt.</div>
+        <div class="chips" style="margin-top:7px">
+          ${state.categories.map(c=>`
+            <button class="chip ${ui.analysisCats.includes(c.id)?'on':''}" onclick="toggleAnalysisCat('${c.id}')">${esc(c.name)}</button>
+          `).join('')}
+          <button class="chip" onclick="ui.analysisCats=[]; renderAnalysis()">Alle</button>
         </div>
-
-        <div
-          class="chips"
-          style="margin-top:7px"
-        >
-
-          ${
-            state.categories
-              .map(
-                c=>`
-                  <button
-                    class="chip ${
-                      ui.analysisCats.includes(c.id)
-                      ?'on'
-                      :''
-                    }"
-                    onclick="
-                      toggleAnalysisCat('${c.id}')
-                    "
-                  >
-                    ${esc(c.name)}
-                  </button>
-                `
-              )
-              .join('')
-          }
-
-          <button
-            class="chip"
-            onclick="
-              ui.analysisCats=[];
-              renderAnalysis()
-            "
-          >
-            Alle
-          </button>
-
-        </div>
-
       </div>
-
     </div>
 
-
-    <div
-      class="grid cards"
-      style="margin-top:12px"
-    >
-
+    <div class="grid cards" style="margin-top:12px">
       <div class="card metric">
-
-        <div class="label">
-          Einnahmen
-        </div>
-
-        <div class="value positive">
-          ${money(inc)}
-        </div>
-
+        <div class="label">Einnahmen</div>
+        <div class="value positive">${money(inc)}</div>
+        ${comp ? deltaBadge(inc,compInc,true) : ''}
       </div>
-
-
       <div class="card metric">
-
-        <div class="label">
-          Ausgaben
-        </div>
-
-        <div class="value negative">
-          ${money(exp)}
-        </div>
-
+        <div class="label">Ausgaben</div>
+        <div class="value negative">${money(exp)}</div>
+        ${comp ? deltaBadge(exp,compExp,false) : ''}
       </div>
-
-
       <div class="card metric">
-
-        <div class="label">
-          Saldo
-        </div>
-
-        <div class="value ${
-          inc-exp>=0
-          ?'positive'
-          :'negative'
-        }">
-          ${money(inc-exp)}
-        </div>
-
+        <div class="label">Saldo</div>
+        <div class="value ${inc-exp>=0?'positive':'negative'}">${money(inc-exp)}</div>
+        ${comp ? deltaBadge(inc-exp,compInc-compExp,true) : ''}
       </div>
-
-
       <div class="card metric">
-
-        <div class="label">
-          Kategorieauswahl
-        </div>
-
-        <div class="value">
-          ${money(totalSelected)}
-        </div>
-
+        <div class="label">Kategorieauswahl</div>
+        <div class="value">${money(totalSelected)}</div>
       </div>
-
     </div>
 
+    ${comp ? `<p class="note" style="margin-top:8px">Vergleichszeitraum: ${esc(fmtDate(comp[0]))} – ${esc(fmtDate(comp[1]))}</p>` : ''}
 
-    <div
-      class="grid split"
-      style="margin-top:12px"
-    >
+    <div class="grid split" style="margin-top:12px">
+      <div class="card">
+        <div class="section-title"><h2>Ausgaben nach Kategorie</h2></div>
+        ${selected.length ? selected.map(([c,v])=>`
+          <div class="barrow">
+            <div class="barlabel">${esc(catName(c))}</div>
+            <div class="bar"><span style="width:${exp?Math.min(100,v/exp*100):0}%;background:${esc(catColorOf(c))}"></span></div>
+            <div class="barvalue">${money(v)}</div>
+          </div>
+        `).join('') : `<div class="empty">Keine passenden Ausgaben.</div>`}
+      </div>
 
       <div class="card">
-
-        <div class="section-title">
-          <h2>Ausgaben nach Kategorie</h2>
-        </div>
-
-        ${
-          selected.length
-          ?
-          selected.map(
-            ([c,v])=>`
-
-              <div class="barrow">
-
-                <div class="barlabel">
-                  ${esc(catName(c))}
-                </div>
-
-                <div class="bar">
-
-                  <span
-                    style="
-                      width:${
-                        exp
-                        ?
-                        Math.min(
-                          100,
-                          v/exp*100
-                        )
-                        :
-                        0
-                      }%
-                    "
-                  ></span>
-
-                </div>
-
-                <div class="barvalue">
-                  ${money(v)}
-                </div>
-
-              </div>
-
-            `
-          ).join('')
-          :
-          `<div class="empty">
-            Keine passenden Ausgaben.
-          </div>`
-        }
-
-      </div>
-
-
-      <div class="card">
-
-        <div class="section-title">
-          <h2>Verteilung</h2>
-        </div>
-
-        <div class="chartbox">
-          <canvas id="catChart"></canvas>
-        </div>
-
-      </div>
-
-    </div>
-
-
-    <div
-      class="card"
-      style="margin-top:12px"
-    >
-
-      <div class="section-title">
-
-        <h2>Festkosten-Analyse</h2>
-
-        <span class="muted">
-          monatliches Äquivalent
-        </span>
-
-      </div>
-
-      ${
-        fixed.length
-        ?
-        fixed.map(
-          r=>`
-
+        <div class="section-title"><h2>Anteile an Gesamtausgaben</h2></div>
+        <div class="note">Beträge mit mehreren Kategorien werden anteilig aufgeteilt – die Prozente ergeben zusammen 100%.</div>
+        ${splitSelected.length ? `<div class="chartbox" style="margin-top:8px"><canvas id="catChart"></canvas></div>` : `<div class="empty" style="margin-top:8px">Keine Daten.</div>`}
+        ${splitSelected.length ? `<div class="list" style="margin-top:10px">
+          ${splitSelected.map(([cid,v])=>`
             <div class="statline">
-
-              <span>
-
-                ${esc(r.name)}
-
-                <span class="pill">
-                  ${esc(recurringLabel(r))}
-                </span>
-
-              </span>
-
-              <strong>
-                ${money(monthlyEquivalent(r))}
-              </strong>
-
+              <span><span class="swatch" style="background:${esc(cid==='__none__'?'#999999':catColorOf(cid))}"></span>${esc(splitCatLabel(cid))}</span>
+              <strong>${(exp?v/exp*100:0).toFixed(1)}% · ${money(v)}</strong>
             </div>
-
-          `
-        ).join('')
-        :
-        `<div class="empty">
-          Keine festen Ausgaben hinterlegt.
-        </div>`
-      }
-
-
-      <div class="statline">
-
-        <strong>
-          Summe monatliches Äquivalent
-        </strong>
-
-        <strong>
-          ${money(
-            sum(
-              fixed,
-              monthlyEquivalent
-            )
-          )}
-        </strong>
-
+          `).join('')}
+        </div>` : ''}
       </div>
-
     </div>
 
-
-    <div
-      class="card"
-      style="margin-top:12px"
-    >
-
-      <div class="section-title">
-
-        <h2>Ampeln</h2>
-
-        <button
-          class="btn small secondary"
-          onclick="openSettings()"
-        >
-          Grenzwerte bearbeiten
-        </button>
-
+    ${budgeted.length ? `
+      <div class="card" style="margin-top:12px">
+        <div class="section-title">
+          <h2>Kategorie-Budgets</h2>
+          <span class="muted">laufender Monat</span>
+        </div>
+        ${budgeted.map(c=>budgetBarHtml(c, spentThisMonthForCat(c.id))).join('')}
       </div>
+    ` : ''}
 
-      ${ampelHtml(
-        'IST-Stand',
-        actualBalance(),
-        state.settings.ampel.balance,
-        'balance'
-      )}
+    <div class="card" style="margin-top:12px">
+      <div class="section-title"><h2>Verlauf · letzte 6 Monate</h2></div>
+      <div class="chartbox" style="height:210px"><canvas id="trendChart"></canvas></div>
+    </div>
 
-      ${ampelHtml(
-        'Bereinigter Monatsstand',
-        calcAdjusted(),
-        state.settings.ampel.adjusted,
-        'adjusted'
-      )}
+    ${(state.reserves.length || state.goals.length) ? `
+      <div class="card" style="margin-top:12px">
+        <div class="section-title"><h2>Rücklagen &amp; Sparziele · Jahresverlauf</h2></div>
+        <div class="chartbox" style="height:210px"><canvas id="reserveGoalChart"></canvas></div>
+      </div>
+    ` : ''}
 
-      ${ampelHtml(
-        'Ausgaben im Zeitraum',
-        exp,
-        state.settings.ampel.monthExpense,
-        'monthExpense'
-      )}
+    <div class="card" style="margin-top:12px">
+      <div class="section-title">
+        <h2>Festkosten-Analyse</h2>
+        <span class="muted">monatliches Äquivalent</span>
+      </div>
+      ${fixed.length ? fixed.map(r=>`
+        <div class="statline">
+          <span>${esc(r.name)} <span class="pill">${esc(recurringLabel(r))}</span></span>
+          <strong>${money(monthlyEquivalent(r))}</strong>
+        </div>
+      `).join('') : `<div class="empty">Keine festen Ausgaben hinterlegt.</div>`}
+      <div class="statline">
+        <strong>Summe monatliches Äquivalent</strong>
+        <strong>${money(sum(fixed,monthlyEquivalent))}</strong>
+      </div>
+    </div>
 
+    <div class="card" style="margin-top:12px">
+      <div class="section-title">
+        <h2>Ampeln</h2>
+        <button class="btn small secondary" onclick="openSettings()">Grenzwerte bearbeiten</button>
+      </div>
+      ${ampelHtml('IST-Stand', actualBalance(), state.settings.ampel.balance)}
+      ${ampelHtml('Frei verfügbar (Monat)', freiVerfuegbar(), state.settings.ampel.available)}
+      ${ampelHtml('Ausgaben im Zeitraum', exp, state.settings.ampel.monthExpense)}
     </div>
   `;
 
-  drawChart(
-    'catChart',
-    selected
-  );
+  renderCatChart(splitSelected, exp);
+  renderTrendChart();
+  renderReserveGoalChart();
 }
 
+function renderCatChart(entries,total){
+  const c=document.getElementById('catChart');
+  if(!c) return;
+  if(catChartInstance){ catChartInstance.destroy(); catChartInstance=null; }
+  if(!entries.length || typeof Chart==='undefined') return;
+
+  const labels=entries.map(([cid])=>splitCatLabel(cid));
+  const values=entries.map(([,v])=>v);
+  const colors=entries.map(([cid])=> cid==='__none__' ? '#999999' : catColorOf(cid));
+
+  catChartInstance=new Chart(c.getContext('2d'), {
+    type:'pie',
+    data:{ labels, datasets:[{ data:values, backgroundColor:colors, borderWidth:0 }] },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{
+        legend:{ position:'bottom', labels:{ color:cssVar('--ink'), boxWidth:10, font:{size:11} } },
+        tooltip:{ callbacks:{ label:ctx => ctx.label+': '+money(ctx.parsed)+' ('+(total?(ctx.parsed/total*100).toFixed(1):'0')+'%)' } }
+      }
+    }
+  });
+}
+
+function renderTrendChart(){
+  const c=document.getElementById('trendChart');
+  if(!c || typeof Chart==='undefined') return;
+  if(trendChartInstance){ trendChartInstance.destroy(); trendChartInstance=null; }
+
+  const months=[];
+  for(let i=5;i>=0;i--) months.push(addMonths(startMonth(today()),-i));
+
+  const labels=months.map(m=>fmtMonthShort(m));
+  const inc=months.map(m=>sum(transBetween(startMonth(m),endMonth(m)).filter(x=>x.type==='income'),x=>x.amount));
+  const exp=months.map(m=>sum(transBetween(startMonth(m),endMonth(m)).filter(x=>x.type==='expense'),x=>x.amount));
+
+  trendChartInstance=new Chart(c.getContext('2d'), {
+    type:'bar',
+    data:{
+      labels,
+      datasets:[
+        { label:'Einnahmen', data:inc, backgroundColor:cssVar('--good'), borderRadius:5, maxBarThickness:22 },
+        { label:'Ausgaben', data:exp, backgroundColor:cssVar('--bad'), borderRadius:5, maxBarThickness:22 }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{ ticks:{color:cssVar('--muted')}, grid:{display:false} },
+        y:{ ticks:{color:cssVar('--muted')}, grid:{color:cssVar('--line')} }
+      },
+      plugins:{ legend:{ position:'bottom', labels:{ color:cssVar('--ink'), boxWidth:10, font:{size:11} } } }
+    }
+  });
+}
+
+function renderReserveGoalChart(){
+  const c=document.getElementById('reserveGoalChart');
+  if(!c || typeof Chart==='undefined') return;
+  if(reserveGoalChartInstance){ reserveGoalChartInstance.destroy(); reserveGoalChartInstance=null; }
+  if(!state.reserves.length && !state.goals.length) return;
+
+  const months=[];
+  for(let i=11;i>=0;i--) months.push(addMonths(startMonth(today()),-i));
+
+  const labels=months.map(m=>fmtMonthShort(m)+' '+String(dateObj(m).getFullYear()).slice(2));
+  const reserveData=months.map(m=>reservesTotalAt(endMonth(m)));
+  const goalData=months.map(m=>goalsTotalAt(endMonth(m)));
+
+  reserveGoalChartInstance=new Chart(c.getContext('2d'), {
+    type:'line',
+    data:{
+      labels,
+      datasets:[
+        { label:'Rücklagen', data:reserveData, borderColor:cssVar('--accent'), backgroundColor:cssVar('--accent'), tension:.3, fill:false, pointRadius:2 },
+        { label:'Sparziele', data:goalData, borderColor:cssVar('--good'), backgroundColor:cssVar('--good'), tension:.3, fill:false, pointRadius:2 }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      scales:{
+        x:{ ticks:{color:cssVar('--muted')}, grid:{display:false} },
+        y:{ ticks:{color:cssVar('--muted')}, grid:{color:cssVar('--line')} }
+      },
+      plugins:{ legend:{ position:'bottom', labels:{ color:cssVar('--ink'), boxWidth:10, font:{size:11} } } }
+    }
+  });
+}
 
 function periodLabel(){
-
-  const d=dateObj(
-    ui.analysisDate
-  );
-
-  if(ui.analysisPeriod==='year'){
-    return String(
-      d.getFullYear()
-    );
-  }
-
-  if(ui.analysisPeriod==='quarter'){
-
-    return `Q${
-      Math.floor(d.getMonth()/3)+1
-    } ${d.getFullYear()}`;
-  }
-
+  const d=dateObj(ui.analysisDate);
+  if(ui.analysisPeriod==='year') return 'Kalenderjahr '+d.getFullYear();
+  if(ui.analysisPeriod==='quarter') return `Q${Math.floor(d.getMonth()/3)+1} ${d.getFullYear()}`;
+  if(ui.analysisPeriod==='rolling365') return 'Letzte 365 Tage';
+  if(ui.analysisPeriod==='all') return 'Gesamtzeitraum';
   return fmtMonth(d);
 }
 
-
-function setAnalysisPeriod(p){
-
-  ui.analysisPeriod=p;
-
-  renderAnalysis();
-}
-
+function setAnalysisPeriod(p){ ui.analysisPeriod=p; renderAnalysis(); }
 
 function analysisShift(n){
-
   if(ui.analysisPeriod==='year'){
-
-    ui.analysisDate=
-      new Date(
-        ui.analysisDate.getFullYear()+n,
-        ui.analysisDate.getMonth(),
-        1
-      );
-
-  }else if(
-    ui.analysisPeriod==='quarter'
-  ){
-
-    ui.analysisDate=
-      new Date(
-        ui.analysisDate.getFullYear(),
-        ui.analysisDate.getMonth()+3*n,
-        1
-      );
-
+    ui.analysisDate=new Date(ui.analysisDate.getFullYear()+n, ui.analysisDate.getMonth(),1);
+  }else if(ui.analysisPeriod==='quarter'){
+    ui.analysisDate=new Date(ui.analysisDate.getFullYear(), ui.analysisDate.getMonth()+3*n,1);
   }else{
-
-    ui.analysisDate=
-      new Date(
-        ui.analysisDate.getFullYear(),
-        ui.analysisDate.getMonth()+n,
-        1
-      );
+    ui.analysisDate=new Date(ui.analysisDate.getFullYear(), ui.analysisDate.getMonth()+n,1);
   }
-
   renderAnalysis();
 }
 
+function isoMonthValue(d){
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;
+}
+
+function jumpToMonth(v){
+  if(!v) return;
+  const [y,m]=v.split('-').map(Number);
+  ui.analysisDate=new Date(y,m-1,1);
+  renderAnalysis();
+}
+
+function jumpToYear(v){
+  const y=Number(v);
+  if(!y) return;
+  ui.analysisDate=new Date(y, ui.analysisDate.getMonth(),1);
+  renderAnalysis();
+}
 
 function toggleAnalysisCat(c){
-
-  ui.analysisCats=
-    ui.analysisCats.includes(c)
-    ?
-    ui.analysisCats.filter(
-      x=>x!==c
-    )
-    :
-    ui.analysisCats.concat(c);
-
+  ui.analysisCats=ui.analysisCats.includes(c) ? ui.analysisCats.filter(x=>x!==c) : ui.analysisCats.concat(c);
   renderAnalysis();
 }
 
+/* =========================
+   KATEGORIE-DETAILANSICHT
+========================= */
 
-function calcAdjusted(){
+function openCategoryDetail(cid, onlyMonth=false){
+  const c=state.categories.find(x=>x.id===cid);
+  if(!c) return;
 
-  const t=today();
+  let rows=state.transactions.filter(x=>(x.categories||[]).includes(cid));
+  if(onlyMonth){
+    const ms=startMonth(today()), me=endMonth(today());
+    rows=rows.filter(x=>x.date>=ms && x.date<=me);
+  }
+  rows=[...rows].sort((a,b)=>b.date.localeCompare(a.date));
 
-  const mEnd=endMonth(t);
+  const spent=sum(rows.filter(x=>x.type==='expense'),x=>x.amount);
+  const inc=sum(rows.filter(x=>x.type==='income'),x=>x.amount);
 
-  return (
-    actualBalance()
-    +
-    sum(
-      expectedRows(
-        addDays(t,1),
-        mEnd,
-        'income'
-      ),
-      x=>x.amount
-    )
-    -
-    sum(
-      expectedRows(
-        addDays(t,1),
-        mEnd,
-        'expense'
-      ),
-      x=>x.amount
-    )
-  );
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3><span class="swatch" style="background:${catColorOf(c.id)}"></span>${esc(c.name)}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+
+    <div class="tabs">
+      <button class="tab ${!onlyMonth?'active':''}" onclick="openCategoryDetail('${cid}',false)">Gesamt</button>
+      <button class="tab ${onlyMonth?'active':''}" onclick="openCategoryDetail('${cid}',true)">Dieser Monat</button>
+    </div>
+
+    <div class="grid cards" style="grid-template-columns:1fr 1fr;margin-bottom:12px">
+      <div class="card metric"><div class="label">Ausgaben</div><div class="value negative">${money(spent)}</div></div>
+      <div class="card metric"><div class="label">Einnahmen</div><div class="value positive">${money(inc)}</div></div>
+    </div>
+
+    ${c.budget>0 ? budgetBarHtml(c, spentThisMonthForCat(cid)) : ''}
+
+    ${rows.length ? `<input id="catDetailSearch" placeholder="Buchungen durchsuchen …" style="margin-top:12px" oninput="filterCategoryDetail()" class="inputlike">` : ''}
+
+    <div id="catDetailList" class="list" style="margin-top:12px">
+      ${rows.length ? rows.map(x=>categoryDetailRow(x,cid)).join('') : `<div class="empty">Keine Buchungen in dieser Kategorie.</div>`}
+    </div>
+  `;
+  showModal();
 }
 
-
-function light(value,th){
-
-  if(
-    value>=Number(th.green)
-  ){
-    return 'green';
-  }
-
-  if(
-    value>=Number(th.yellow)
-  ){
-    return 'yellow';
-  }
-
-  return 'red';
-}
-
-
-function ampelHtml(
-  label,
-  value,
-  th,
-  key
-){
-
+function categoryDetailRow(x,currentCid){
+  const others=(x.categories||[]).filter(c=>c!==currentCid).map(catName);
+  const search=esc((x.description||'')+' '+(x.notes||'')+' '+(x.date||'')+' '+others.join(' '));
   return `
-    <div class="statline">
-
-      <span class="ampel">
-
-        <span
-          class="light ${light(value,th)}"
-        ></span>
-
-        ${esc(label)}
-
-      </span>
-
-      <span>
-        <strong>
-          ${money(value)}
-        </strong>
-      </span>
-
+    <div class="row ${x.type}" data-search="${search}">
+      <div class="row-main">
+        <div class="row-title"><span class="dot"></span>${esc(x.description||'Ohne Bezeichnung')}</div>
+        <div class="row-sub">${esc(fmtDate(x.date))}</div>
+        ${others.length ? `<div class="row-sub">auch in: ${others.map(n=>esc(n)).join(', ')}</div>` : ''}
+      </div>
+      <div class="row-right">
+        <div class="amount ${x.type==='income'?'positive':'negative'}">${x.type==='income'?'+':'−'}${money(x.amount)}</div>
+      </div>
     </div>
   `;
 }
 
-
-function drawChart(id,data){
-
-  const c=document.getElementById(id);
-
-  if(!c)return;
-
-  const r=c.getBoundingClientRect();
-
-  const dpr=
-    window.devicePixelRatio||1;
-
-  c.width=r.width*dpr;
-  c.height=r.height*dpr;
-
-  const x=c.getContext('2d');
-
-  x.scale(dpr,dpr);
-
-  const w=r.width;
-  const h=r.height;
-
-  const cx=w/2;
-  const cy=h/2;
-
-  const R=Math.min(w,h)*.32;
-  const r0=R*.58;
-
-  const total=
-    sum(data,x=>x[1]);
-
-  x.clearRect(
-    0,
-    0,
-    w,
-    h
-  );
-
-  if(!total){
-
-    x.fillStyle='#77808d';
-    x.textAlign='center';
-    x.font='14px sans-serif';
-
-    x.fillText(
-      'Keine Daten',
-      cx,
-      cy
-    );
-
-    return;
-  }
-
-  let start=-Math.PI/2;
-
-  data
-    .slice(0,12)
-    .forEach(
-      ([cid,val],i)=>{
-
-        const ang=
-          val/total*Math.PI*2;
-
-        x.beginPath();
-
-        x.moveTo(
-          cx,
-          cy
-        );
-
-        x.arc(
-          cx,
-          cy,
-          R,
-          start,
-          start+ang
-        );
-
-        x.closePath();
-
-        x.fillStyle=
-          `hsl(${
-            (i*47+210)%360
-          } 70% 55%)`;
-
-        x.fill();
-
-        start+=ang;
-      }
-    );
-
-  x.globalCompositeOperation=
-    'destination-out';
-
-  x.beginPath();
-
-  x.arc(
-    cx,
-    cy,
-    r0,
-    0,
-    Math.PI*2
-  );
-
-  x.fill();
-
-  x.globalCompositeOperation=
-    'source-over';
-
-  x.fillStyle='#152033';
-
-  x.textAlign='center';
-
-  x.font='700 14px sans-serif';
-
-  x.fillText(
-    money(total),
-    cx,
-    cy+5
-  );
+function filterCategoryDetail(){
+  const q=(document.getElementById('catDetailSearch')?.value||'').toLowerCase();
+  document.querySelectorAll('#catDetailList .row').forEach(r=>{
+    r.style.display=(!q || r.dataset.search.toLowerCase().includes(q)) ? 'flex' : 'none';
+  });
 }
 
-
 /* =========================
-   LISTEN
+   VERWALTUNG (LISTEN)
 ========================= */
 
 function renderLists(){
-
-  const el=
-    document.getElementById(
-      'page-lists'
-    );
+  const el=document.getElementById('page-lists');
 
   el.innerHTML=`
-
     <div class="section-title">
-
       <div>
-
-        <h2>
-          Listen & Einstellungen
-        </h2>
-
-        <div class="muted">
-          Kategorien, wiederkehrende Posten
-          und Datentransfer.
-        </div>
-
+        <h2>Verwaltung</h2>
+        <div class="muted">Kategorien, Budgets, Sparziele, Rücklagen, Favoriten und Einstellungen.</div>
       </div>
-
     </div>
-
-
-    <div class="tabs">
-
-      <button class="tab active">
-        Kategorien
-      </button>
-
-      <button
-        class="tab"
-        onclick="openRecurring()"
-      >
-        Wiederkehrende Posten
-      </button>
-
-      <button
-        class="tab"
-        onclick="openSettings()"
-      >
-        Einstellungen & Transfer
-      </button>
-
-    </div>
-
 
     <div class="card">
-
       <div class="section-title">
-
-        <h2>Kategorien</h2>
-
-        <button
-          class="btn small"
-          onclick="addCategory()"
-        >
-          ＋ Kategorie
-        </button>
-
+        <h2>Kategorien &amp; Budgets</h2>
+        <button class="btn small" onclick="openCategoryEditor()">＋ Kategorie</button>
       </div>
-
 
       <div class="list">
-
-        ${
-          state.categories.map(
-            c=>`
-
-              <div class="row">
-
-                <div class="row-title">
-                  ${esc(c.name)}
-                </div>
-
-                <div class="toolbar">
-
-                  <button
-                    class="btn small secondary"
-                    onclick="editCategory('${c.id}')"
-                  >
-                    Bearbeiten
-                  </button>
-
-                  <button
-                    class="btn small danger"
-                    onclick="deleteCategory('${c.id}')"
-                  >
-                    Löschen
-                  </button>
-
-                </div>
-
-              </div>
-
-            `
-          ).join('')
-        }
-
-      </div>
-
-    </div>
-
-
-    <div
-      class="card"
-      style="margin-top:12px"
-    >
-
-      <div class="section-title">
-
-        <div>
-
-          <h2>
-            Wiederkehrende Posten
-          </h2>
-
-          <div class="muted">
-            Feste und unregelmäßige Vorlagen
-            für Einnahmen und Ausgaben.
+        ${state.categories.map(c=>`
+          <div class="row">
+            <div class="row-main clickable" onclick="openCategoryDetail('${c.id}')">
+              <div class="row-title"><span class="swatch" style="background:${catColorOf(c.id)}"></span>${esc(c.name)}</div>
+              ${c.budget>0 ? `<div class="row-sub">Budget: ${money(c.budget)} / Monat</div>` : `<div class="row-sub">kein Budget gesetzt</div>`}
+            </div>
+            <div class="toolbar">
+              <button class="btn small secondary" onclick="openCategoryEditor('${c.id}')">Bearbeiten</button>
+              <button class="btn small danger" onclick="deleteCategory('${c.id}')">Löschen</button>
+            </div>
           </div>
-
-        </div>
-
-        <button
-          class="btn small"
-          onclick="openRecurring()"
-        >
-          Verwalten
-        </button>
-
+        `).join('')}
       </div>
-
-
-      ${
-        state.recurring.length
-        ?
-        `<div class="list">
-
-          ${
-            state.recurring
-              .slice(0,8)
-              .map(
-                r=>`
-
-                  <div class="row">
-
-                    <div class="row-main">
-
-                      <div class="row-title">
-                        ${esc(r.name)}
-                      </div>
-
-                      <div class="row-sub">
-
-                        ${
-                          r.type==='income'
-                          ?'Einnahme'
-                          :'Ausgabe'
-                        }
-
-                        ·
-
-                        ${esc(
-                          recurringLabel(r)
-                        )}
-
-                        ${
-                          r.fixed
-                          ?' · fest'
-                          :''
-                        }
-
-                      </div>
-
-                    </div>
-
-                    <div class="row-right">
-
-                      <strong>
-                        ${money(r.amount)}
-                      </strong>
-
-                      <div class="row-sub">
-
-                        ${
-                          r.fixed
-                          ?
-                          money(
-                            monthlyEquivalent(r)
-                          )+'/Monat'
-                          :
-                          ''
-                        }
-
-                      </div>
-
-                    </div>
-
-                  </div>
-
-                `
-              )
-              .join('')
-          }
-
-        </div>`
-        :
-        `<div class="empty">
-          Noch keine wiederkehrenden Posten.
-        </div>`
-      }
-
     </div>
 
-
-    <div
-      class="card"
-      style="margin-top:12px"
-    >
-
+    <div class="card" style="margin-top:12px">
       <div class="section-title">
+        <h2>Schnelleingabe-Favoriten</h2>
+        <button class="btn small" onclick="openFavoriteEditor()">＋ Favorit</button>
+      </div>
+      ${state.favorites.length ? `
+        <div class="list">
+          ${state.favorites.map(f=>`
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">${f.type==='income'?'＋':'－'} ${esc(f.name)}</div>
+                <div class="row-sub">${money(f.amount)} · ${catsHtml(f.categories)}</div>
+              </div>
+              <div class="toolbar">
+                <button class="btn small secondary" onclick="openFavoriteEditor('${f.id}')">Bearbeiten</button>
+                <button class="btn small danger" onclick="deleteFavorite('${f.id}')">Löschen</button>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `<div class="empty">Noch keine Favoriten angelegt.</div>`}
+    </div>
 
-        <h2>Datensicherung</h2>
-
+    <div class="card" style="margin-top:12px">
+      <div class="section-title">
+        <h2>Sparziele</h2>
+        <button class="btn small" onclick="openGoalEditor()">＋ Sparziel</button>
       </div>
 
-      <p class="note">
+      ${state.goals.length ? state.goals.map(g=>{
+        const total=goalTotal(g);
+        const pct=g.targetAmount>0 ? Math.min(100,total/g.targetAmount*100) : 0;
+        return `
+          <div class="goalrow">
+            <div class="goaltop"><span class="goalname">${esc(g.name)}</span><span class="goalpct">${pct.toFixed(0)}%</span></div>
+            <div class="bar"><span style="width:${pct}%"></span></div>
+            <div class="row-sub" style="margin-top:7px">
+              ${money(total)} von ${money(g.targetAmount)}
+              ${g.targetDate ? ' · Ziel: '+esc(fmtDate(g.targetDate)) : ''}
+            </div>
+            <div class="toolbar" style="margin-top:9px">
+              <button class="btn small secondary" onclick="openGoalTransaction('${g.id}','in')">＋ Einzahlen</button>
+              <button class="btn small secondary" onclick="openGoalTransaction('${g.id}','out')">－ Rückbuchen</button>
+              <button class="btn small secondary" onclick="openGoalHistory('${g.id}')">Verlauf</button>
+              <button class="btn small secondary" onclick="openGoalEditor('${g.id}')">Bearbeiten</button>
+              <button class="btn small danger" onclick="deleteGoal('${g.id}')">Löschen</button>
+            </div>
+          </div>
+        `;
+      }).join('') : `<div class="empty">Noch keine Sparziele angelegt.</div>`}
+    </div>
 
-        Export und Import übertragen den
-        aktuellen Datenbestand auf ein anderes
-        Gerät. Der Export enthält keine Daten
-        außerhalb dieser App.
-
-      </p>
-
-      <div class="toolbar">
-
-        <button
-          class="btn"
-          onclick="exportData()"
-        >
-          Daten exportieren
-        </button>
-
-        <button
-          class="btn secondary"
-          onclick="
-            document
-              .getElementById('importFile')
-              .click()
-          "
-        >
-          Daten importieren
-        </button>
-
+    <div class="card" style="margin-top:12px">
+      <div class="section-title">
+        <div>
+          <h2>Rücklagen</h2>
+          <div class="muted">Gesamt reserviert: ${money(reservesGrandTotal())}</div>
+        </div>
+        <button class="btn small" onclick="openReserveEditor()">＋ Rücklage</button>
       </div>
 
+      ${state.reserves.length ? state.reserves.map(r=>`
+        <div class="goalrow">
+          <div class="goaltop"><span class="goalname">${esc(r.name)}</span><span class="goalpct">${money(reserveTotal(r.id))}</span></div>
+          ${r.notes ? `<div class="row-sub">${esc(r.notes)}</div>` : ''}
+          <div class="toolbar" style="margin-top:9px">
+            <button class="btn small secondary" onclick="openReserveTransaction('${r.id}','in')">＋ Einzahlen</button>
+            <button class="btn small secondary" onclick="openReserveTransaction('${r.id}','out')">－ Rückbuchen</button>
+            <button class="btn small secondary" onclick="openReserveEditor('${r.id}')">Bearbeiten</button>
+            <button class="btn small danger" onclick="deleteReserve('${r.id}')">Löschen</button>
+          </div>
+        </div>
+      `).join('') : `<div class="empty">Noch keine Rücklagen angelegt.</div>`}
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="section-title">
+        <div>
+          <h2>Wiederkehrende Posten</h2>
+          <div class="muted">Feste und unregelmäßige Vorlagen für Einnahmen und Ausgaben.</div>
+        </div>
+        <button class="btn small" onclick="openRecurring()">Verwalten</button>
+      </div>
+
+      ${state.recurring.length ? `
+        <div class="list">
+          ${state.recurring.slice(0,8).map(r=>`
+            <div class="row">
+              <div class="row-main">
+                <div class="row-title">${esc(r.name)}</div>
+                <div class="row-sub">
+                  ${r.type==='income'?'Einnahme':'Ausgabe'} · ${esc(recurringLabel(r))}${r.fixed?' · fest':''}
+                </div>
+              </div>
+              <div class="row-right">
+                <strong>${money(amountAt(r,today()))}</strong>
+                ${r.fixed ? `<div class="row-sub">${money(monthlyEquivalent(r))}/Monat</div>` : ''}
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      ` : `<div class="empty">Noch keine wiederkehrenden Posten.</div>`}
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="section-title"><h2>Darstellung</h2></div>
+      <div class="themepicker">
+        <button class="chip ${state.settings.theme==='light'?'on':''}" onclick="setTheme('light')">☀ Hell</button>
+        <button class="chip ${state.settings.theme==='dark'?'on':''}" onclick="setTheme('dark')">☾ Dunkel</button>
+        <button class="chip ${state.settings.theme==='system'?'on':''}" onclick="setTheme('system')">◐ System</button>
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="section-title"><h2>Einstellungen &amp; Datensicherung</h2></div>
+      <button class="btn secondary" onclick="openSettings()">Öffnen</button>
     </div>
   `;
 }
-
 
 /* =========================
    BUCHUNGSMODAL
 ========================= */
 
-function openTransaction(
-  type='expense',
-  tid=null,
-  presetDate=null
-){
+function openTransaction(type='expense', tid=null, presetDate=null, favoriteId=null){
+  const old=tid ? state.transactions.find(x=>x.id===tid) : null;
+  const fav=favoriteId ? state.favorites.find(x=>x.id===favoriteId) : null;
+  if(fav) type=fav.type;
 
-  const old=
-    tid
-    ?
-    state.transactions.find(
-      x=>x.id===tid
-    )
-    :
-    null;
+  const selected=old?.categories || fav?.categories || [];
+  const date=old?.date||presetDate||today();
 
-  const selected=
-    old?.categories||[];
-
-  const date=
-    old?.date||
-    presetDate||
-    today();
-
-  document.getElementById(
-    'modal'
-  ).innerHTML=`
-
+  document.getElementById('modal').innerHTML=`
     <div class="modalhead">
-
-      <h3>
-
-        ${
-          old
-          ?'Buchung bearbeiten'
-          :
-          type==='income'
-          ?'Einnahme erfassen'
-          :'Ausgabe erfassen'
-        }
-
-      </h3>
-
-      <button
-        class="close"
-        onclick="closeModal()"
-      >
-        ✕
-      </button>
-
+      <h3>${old?'Buchung bearbeiten':(type==='income'?'Einnahme erfassen':'Ausgabe erfassen')}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
     </div>
 
-
-    <form
-      id="txForm"
-      onsubmit="
-        return saveTransaction(
-          event,
-          '${type}',
-          '${tid||''}'
-        )
-      "
-    >
-
+    <form id="txForm" onsubmit="return saveTransaction(event,'${type}','${tid||''}')">
       <div class="formgrid">
-
         <div class="field">
-
           <label>Art</label>
-
           <select name="type">
-
-            <option
-              value="expense"
-              ${
-                type==='expense'
-                ?'selected'
-                :''
-              }
-            >
-              Ausgabe
-            </option>
-
-            <option
-              value="income"
-              ${
-                type==='income'
-                ?'selected'
-                :''
-              }
-            >
-              Einnahme
-            </option>
-
+            <option value="expense" ${type==='expense'?'selected':''}>Ausgabe</option>
+            <option value="income" ${type==='income'?'selected':''}>Einnahme</option>
           </select>
-
         </div>
 
-
         <div class="field">
-
           <label>Betrag (€)</label>
-
-          <input
-            name="amount"
-            type="number"
-            step="0.01"
-            min="0"
-            required
-            value="${
-              old
-              ?esc(old.amount)
-              :''
-            }"
-          >
-
+          <input name="amount" type="number" step="0.01" min="0" required value="${old?esc(old.amount):fav?esc(fav.amount):''}">
         </div>
 
-
         <div class="field">
-
           <label>Datum</label>
-
-          <input
-            name="date"
-            type="date"
-            required
-            value="${esc(date)}"
-          >
-
+          <input name="date" type="date" required value="${esc(date)}">
         </div>
 
-
         <div class="field">
-
           <label>Bezeichnung</label>
-
-          <input
-            name="description"
-            maxlength="100"
-            required
-            placeholder="z. B. Einkauf, Gehalt …"
-            value="${
-              esc(
-                old?.description||''
-              )
-            }"
-          >
-
+          <input name="description" maxlength="100" required placeholder="z. B. Einkauf, Gehalt …" value="${esc(old?.description || fav?.name || '')}">
         </div>
 
-
         <div class="field full">
-
-          <label>
-            Kategorie(n)
-          </label>
-
+          <label>Kategorie(n)</label>
           <div class="checkgrid">
-
-            ${
-              state.categories
-                .map(
-                  c=>`
-
-                    <label class="check">
-
-                      <input
-                        type="checkbox"
-                        name="cat"
-                        value="${c.id}"
-                        ${
-                          selected.includes(c.id)
-                          ?'checked'
-                          :''
-                        }
-                      >
-
-                      ${esc(c.name)}
-
-                    </label>
-
-                  `
-                )
-                .join('')
-            }
-
+            ${state.categories.map(c=>`
+              <label class="check">
+                <input type="checkbox" name="cat" value="${c.id}" ${selected.includes(c.id)?'checked':''}>
+                ${esc(c.name)}
+              </label>
+            `).join('')}
           </div>
-
         </div>
 
-
         <div class="field">
-
           <label>Wiederholung</label>
-
           <select name="recurrence">
-
-            <option
-              value="once"
-              ${
-                !old ||
-                old.recurrence==='once'
-                ?'selected'
-                :''
-              }
-            >
-              einmalig
-            </option>
-
-            <option
-              value="daily"
-              ${
-                old?.recurrence==='daily'
-                ?'selected'
-                :''
-              }
-            >
-              täglich
-            </option>
-
-            <option
-              value="weekly"
-              ${
-                old?.recurrence==='weekly'
-                ?'selected'
-                :''
-              }
-            >
-              wöchentlich
-            </option>
-
-            <option
-              value="monthly"
-              ${
-                old?.recurrence==='monthly'
-                ?'selected'
-                :''
-              }
-            >
-              monatlich
-            </option>
-
-            <option
-              value="quarterly"
-              ${
-                old?.recurrence==='quarterly'
-                ?'selected'
-                :''
-              }
-            >
-              vierteljährlich
-            </option>
-
-            <option
-              value="yearly"
-              ${
-                old?.recurrence==='yearly'
-                ?'selected'
-                :''
-              }
-            >
-              jährlich
-            </option>
-
+            <option value="once" ${!old||old.recurrence==='once'?'selected':''}>einmalig</option>
+            <option value="daily" ${old?.recurrence==='daily'?'selected':''}>täglich</option>
+            <option value="weekly" ${old?.recurrence==='weekly'?'selected':''}>wöchentlich</option>
+            <option value="monthly" ${old?.recurrence==='monthly'?'selected':''}>monatlich</option>
+            <option value="quarterly" ${old?.recurrence==='quarterly'?'selected':''}>vierteljährlich</option>
+            <option value="yearly" ${old?.recurrence==='yearly'?'selected':''}>jährlich</option>
           </select>
-
         </div>
-
 
         <div class="field">
-
           <label>Vorlage</label>
-
-          <select
-            name="template"
-            onchange="
-              applyTemplate(this.value)
-            "
-          >
-
-            <option value="">
-              Keine Vorlage
-            </option>
-
-            ${
-              state.recurring
-                .map(
-                  r=>`
-
-                    <option
-                      value="${r.id}"
-                      ${
-                        old?.recurringTemplateId===r.id
-                        ?'selected'
-                        :''
-                      }
-                    >
-                      ${esc(r.name)}
-                      ·
-                      ${money(r.amount)}
-                    </option>
-
-                  `
-                )
-                .join('')
-            }
-
+          <select name="template" onchange="applyTemplate(this.value)">
+            <option value="">Keine Vorlage</option>
+            ${state.recurring.map(r=>`
+              <option value="${r.id}" ${old?.recurringTemplateId===r.id?'selected':''}>${esc(r.name)} · ${money(amountAt(r,today()))}</option>
+            `).join('')}
           </select>
-
         </div>
-
 
         <div class="field full">
-
-          <label>
-            Notizen
-          </label>
-
-          <textarea
-            name="notes"
-            placeholder="Wichtige Zusatzinformationen …"
-          >${
-            esc(old?.notes||'')
-          }</textarea>
-
+          <label>Notizen</label>
+          <textarea name="notes" placeholder="Wichtige Zusatzinformationen …">${esc(old?.notes||'')}</textarea>
         </div>
-
       </div>
 
-
-      <div
-        class="note"
-        style="margin-top:10px"
-      >
-
-        Bei einer Wiederholung wird zusätzlich
-        eine Vorlage angelegt bzw. aktualisiert.
-        Die heutige Buchung bleibt eine echte
-        Buchung.
-
+      <div class="note" style="margin-top:10px">
+        Bei einer Wiederholung wird zusätzlich eine Vorlage angelegt bzw. aktualisiert. Die heutige Buchung bleibt eine echte Buchung.
       </div>
-
 
       <div class="actions">
-
-        <button
-          type="button"
-          class="btn secondary"
-          onclick="closeModal()"
-        >
-          Abbrechen
-        </button>
-
-        <button
-          class="btn"
-          type="submit"
-        >
-          Speichern
-        </button>
-
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
       </div>
-
     </form>
   `;
-
   showModal();
+
+  if(fav) applyFavoriteToForm(fav);
+  document.getElementById('txForm')?.amount?.focus();
 }
 
-
 function applyTemplate(rid){
+  if(!rid) return;
+  const r=state.recurring.find(x=>x.id===rid);
+  if(!r) return;
 
-  if(!rid)return;
-
-  const r=
-    state.recurring.find(
-      x=>x.id===rid
-    );
-
-  if(!r)return;
-
-  const f=
-    document.getElementById(
-      'txForm'
-    );
-
-  f.amount.value=r.amount;
+  const f=document.getElementById('txForm');
+  f.amount.value=amountAt(r,today());
   f.description.value=r.name;
   f.notes.value=r.notes||'';
   f.type.value=r.type;
 
-  f.querySelectorAll(
-    'input[name="cat"]'
-  ).forEach(
-    c=>{
-      c.checked=
-        (r.categories||[])
-          .includes(c.value);
-    }
-  );
+  f.querySelectorAll('input[name="cat"]').forEach(c=>{
+    c.checked=(r.categories||[]).includes(c.value);
+  });
 
   if(f.recurrence){
-
-    f.recurrence.value=
-      r.recurrence==='manual'
-      ?'once'
-      :r.recurrence;
+    f.recurrence.value=r.recurrence==='manual' ? 'once' : r.recurrence;
   }
 }
 
+function applyFavoriteToForm(fav){
+  const f=document.getElementById('txForm');
+  if(!f) return;
+  f.amount.value=fav.amount;
+  f.description.value=fav.name;
+  f.type.value=fav.type;
+  f.querySelectorAll('input[name="cat"]').forEach(c=>{
+    c.checked=(fav.categories||[]).includes(c.value);
+  });
+}
 
-function saveTransaction(
-  ev,
-  type,
-  tid
-){
-
+function saveTransaction(ev,type,tid){
   ev.preventDefault();
-
   const f=ev.target;
-
   const fd=new FormData(f);
-
   const r=fd.get('recurrence');
 
   const obj={
-
     id:tid||id(),
-
     type:fd.get('type'),
-
-    amount:
-      Math.round(
-        Number(fd.get('amount'))*100
-      )/100,
-
+    amount:Math.round(Number(fd.get('amount'))*100)/100,
     date:fd.get('date'),
-
-    description:
-      String(
-        fd.get('description')
-      ).trim(),
-
-    notes:
-      String(
-        fd.get('notes')||''
-      ).trim(),
-
-    categories:
-      fd.getAll('cat'),
-
+    description:String(fd.get('description')).trim(),
+    notes:String(fd.get('notes')||'').trim(),
+    categories:fd.getAll('cat'),
     recurrence:r,
-
-    recurringTemplateId:
-      fd.get('template')||null,
-
-    createdAt:
-      new Date().toISOString()
+    recurringTemplateId:fd.get('template')||null,
+    createdAt:new Date().toISOString()
   };
 
-
-  if(
-    !obj.amount ||
-    obj.amount<0 ||
-    !obj.date ||
-    !obj.description
-  ){
-
-    alert(
-      'Bitte Betrag, Datum und Bezeichnung prüfen.'
-    );
-
+  if(!obj.amount || obj.amount<0 || !obj.date || !obj.description){
+    alert('Bitte Betrag, Datum und Bezeichnung prüfen.');
     return false;
   }
 
-
   if(tid){
-
-    const i=
-      state.transactions.findIndex(
-        x=>x.id===tid
-      );
-
-    if(i>=0){
-
-      state.transactions[i]=
-        Object.assign(
-          {},
-          state.transactions[i],
-          obj
-        );
-    }
-
+    const i=state.transactions.findIndex(x=>x.id===tid);
+    if(i>=0) state.transactions[i]=Object.assign({}, state.transactions[i], obj);
   }else{
-
     state.transactions.push(obj);
   }
 
-
   if(r!=='once'){
-
-    const existing=
-      obj.recurringTemplateId
-      ?
-      state.recurring.find(
-        x=>x.id===obj.recurringTemplateId
-      )
-      :
-      null;
-
-    const tpl={
-
-      id:
-        existing?.id||
-        id(),
-
-      type:obj.type,
-
-      name:obj.description,
-
-      amount:obj.amount,
-
-      startDate:obj.date,
-
-      recurrence:r,
-
-      categories:obj.categories,
-
-      notes:obj.notes,
-
-      fixed:
-        existing?.fixed||
-        false,
-
-      active:true,
-
-      annualOccurrences:
-        existing?.annualOccurrences||
-        0
-    };
-
+    const existing=obj.recurringTemplateId ? state.recurring.find(x=>x.id===obj.recurringTemplateId) : null;
 
     if(existing){
-
-      Object.assign(
-        existing,
-        tpl
-      );
-
+      Object.assign(existing, {
+        type:obj.type, name:obj.description, categories:obj.categories, notes:obj.notes
+      });
+      if(Math.round(amountAt(existing,today())*100)!==Math.round(obj.amount*100)){
+        existing.amountHistory=[...(existing.amountHistory||[]), {amount:obj.amount, validFrom:obj.date}]
+          .sort((a,b)=>a.validFrom.localeCompare(b.validFrom));
+        existing.amount=obj.amount;
+      }
     }else{
-
+      const tpl={
+        id:id(), type:obj.type, name:obj.description, amount:obj.amount,
+        amountHistory:[{amount:obj.amount, validFrom:obj.date}],
+        startDate:obj.date, recurrence:r, categories:obj.categories, notes:obj.notes,
+        fixed:false, active:true, annualOccurrences:0
+      };
       state.recurring.push(tpl);
+      obj.recurringTemplateId=tpl.id;
     }
 
-
-    obj.recurringTemplateId=
-      tpl.id;
-
-
-    const savedTx=
-      state.transactions.find(
-        x=>x.id===obj.id
-      );
-
-    if(savedTx){
-
-      savedTx.recurringTemplateId=
-        tpl.id;
-    }
+    const savedTx=state.transactions.find(x=>x.id===obj.id);
+    if(savedTx) savedTx.recurringTemplateId=obj.recurringTemplateId;
   }
 
-
   save();
-
   closeModal();
-
   render();
-
   return false;
 }
 
-
 function deleteTransaction(tid){
+  const idx=state.transactions.findIndex(x=>x.id===tid);
+  if(idx<0) return;
+  const removed=state.transactions[idx];
+  state.transactions.splice(idx,1);
+  save();
+  render();
+  showUndoToast('Buchung gelöscht.', ()=>{ state.transactions.splice(idx,0,removed); });
+}
 
-  if(
-    !confirm(
-      'Diese Buchung wirklich löschen?'
-    )
-  ){
-    return;
+/* =========================
+   KATEGORIEN & BUDGETS
+========================= */
+
+function openCategoryEditor(cid=null){
+  const c=cid ? state.categories.find(x=>x.id===cid) : null;
+  const defaultColor = c ? catColorOf(cid) : autoColorFor(state.categories.length);
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>${c?'Kategorie bearbeiten':'Neue Kategorie'}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+
+    <form onsubmit="return saveCategory(event,'${cid||''}')">
+      <div class="formgrid">
+        <div class="field full">
+          <label>Name</label>
+          <input name="name" required maxlength="40" value="${esc(c?.name||'')}">
+        </div>
+        <div class="field full">
+          <label>Monatsbudget (optional)</label>
+          <input name="budget" type="number" step="0.01" min="0" placeholder="0,00" value="${c?.budget?esc(c.budget):''}">
+          <span class="note">Leer lassen für kein Budget.</span>
+        </div>
+        <div class="field full">
+          <label>Farbe</label>
+          <input name="color" type="color" value="${esc(defaultColor)}">
+          <span class="note">Wird bei Pills, Budget-Balken und im Diagramm verwendet.</span>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
+}
+
+function saveCategory(ev,cid){
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  const name=String(fd.get('name')).trim();
+  const budget=Number(fd.get('budget'))||0;
+  const color=String(fd.get('color')||'');
+
+  if(!name){ alert('Bitte einen Namen angeben.'); return false; }
+
+  if(cid){
+    const c=state.categories.find(x=>x.id===cid);
+    if(c){ c.name=name; c.budget=budget; c.color=color; }
+  }else{
+    if(state.categories.some(c=>c.name.toLowerCase()===name.toLowerCase())){
+      alert('Diese Kategorie gibt es bereits.');
+      return false;
+    }
+    state.categories.push({id:id(), name, budget, color});
   }
 
-  state.transactions=
-    state.transactions.filter(
-      x=>x.id!==tid
-    );
+  save();
+  closeModal();
+  render();
+  return false;
+}
+
+function deleteCategory(cid){
+  if(state.categories.length<=1){
+    alert('Mindestens eine Kategorie muss bestehen bleiben.');
+    return;
+  }
+  const c=state.categories.find(x=>x.id===cid);
+  if(!c) return;
+
+  if(!confirm(`Kategorie „${c.name}" löschen? Sie wird auch aus vorhandenen Buchungen, Vorlagen und Favoriten entfernt.`)) return;
+
+  state.categories=state.categories.filter(x=>x.id!==cid);
+  state.transactions.forEach(t=>{ t.categories=(t.categories||[]).filter(x=>x!==cid); });
+  state.recurring.forEach(r=>{ r.categories=(r.categories||[]).filter(x=>x!==cid); });
+  state.favorites.forEach(f=>{ f.categories=(f.categories||[]).filter(x=>x!==cid); });
 
   save();
-
   render();
 }
 
-
 /* =========================
-   KATEGORIEN
+   SCHNELLEINGABE-FAVORITEN
 ========================= */
 
-function addCategory(){
+function openFavoriteEditor(fid=null){
+  const f=fid ? state.favorites.find(x=>x.id===fid) : null;
 
-  const n=
-    prompt(
-      'Name der neuen Kategorie:',
-      'Neue Kategorie'
-    );
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>${f?'Favorit bearbeiten':'Neuer Favorit'}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
 
-  if(!n?.trim())return;
-
-  if(
-    state.categories.some(
-      c=>
-        c.name.toLowerCase()===
-        n.trim().toLowerCase()
-    )
-  ){
-
-    return alert(
-      'Diese Kategorie gibt es bereits.'
-    );
-  }
-
-  state.categories.push({
-    id:id(),
-    name:n.trim()
-  });
-
-  save();
-
-  renderLists();
+    <form onsubmit="return saveFavorite(event,'${fid||''}')">
+      <div class="formgrid">
+        <div class="field">
+          <label>Art</label>
+          <select name="type">
+            <option value="expense" ${f?.type!=='income'?'selected':''}>Ausgabe</option>
+            <option value="income" ${f?.type==='income'?'selected':''}>Einnahme</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Betrag (€)</label>
+          <input name="amount" type="number" step="0.01" min="0.01" required value="${f?esc(f.amount):''}">
+        </div>
+        <div class="field full">
+          <label>Bezeichnung</label>
+          <input name="name" required maxlength="60" value="${esc(f?.name||'')}">
+        </div>
+        <div class="field full">
+          <label>Kategorie(n)</label>
+          <div class="checkgrid">
+            ${state.categories.map(c=>`
+              <label class="check">
+                <input type="checkbox" name="cat" value="${c.id}" ${f?.categories?.includes(c.id)?'checked':''}>
+                ${esc(c.name)}
+              </label>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
 }
 
+function saveFavorite(ev,fid){
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  const obj={
+    id:fid||id(),
+    type:fd.get('type'),
+    amount:Math.round(Number(fd.get('amount'))*100)/100,
+    name:String(fd.get('name')).trim(),
+    categories:fd.getAll('cat')
+  };
 
-function editCategory(cid){
+  if(!obj.amount || !obj.name){ alert('Bitte Betrag und Bezeichnung prüfen.'); return false; }
 
-  const c=
-    state.categories.find(
-      x=>x.id===cid
-    );
-
-  if(!c)return;
-
-  const n=
-    prompt(
-      'Kategoriename:',
-      c.name
-    );
-
-  if(!n?.trim())return;
-
-  c.name=n.trim();
+  const i=state.favorites.findIndex(x=>x.id===obj.id);
+  if(i>=0) state.favorites[i]=obj; else state.favorites.push(obj);
 
   save();
-
-  renderLists();
+  closeModal();
+  render();
+  return false;
 }
 
+function deleteFavorite(fid){
+  const idx=state.favorites.findIndex(x=>x.id===fid);
+  if(idx<0) return;
+  const removed=state.favorites[idx];
+  state.favorites.splice(idx,1);
+  save();
+  render();
+  showUndoToast('Favorit gelöscht.', ()=>{ state.favorites.splice(idx,0,removed); });
+}
 
-function deleteCategory(cid){
+/* =========================
+   SPARZIELE
+========================= */
 
-  if(state.categories.length<=1){
+function openGoalEditor(gid=null){
+  const g=gid ? state.goals.find(x=>x.id===gid) : null;
 
-    return alert(
-      'Mindestens eine Kategorie muss bestehen bleiben.'
-    );
-  }
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>${g?'Sparziel bearbeiten':'Neues Sparziel'}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
 
-  const c=
-    state.categories.find(
-      x=>x.id===cid
-    );
+    <form onsubmit="return saveGoal(event,'${gid||''}')">
+      <div class="formgrid">
+        <div class="field full">
+          <label>Bezeichnung</label>
+          <input name="name" required maxlength="60" value="${esc(g?.name||'')}">
+        </div>
+        <div class="field">
+          <label>Zielbetrag (€)</label>
+          <input name="targetAmount" type="number" step="0.01" min="0" required value="${g?esc(g.targetAmount):''}">
+        </div>
+        ${!g ? `
+        <div class="field">
+          <label>Startbetrag (optional)</label>
+          <input name="startAmount" type="number" step="0.01" min="0" value="0">
+        </div>` : ''}
+        <div class="field">
+          <label>Zieldatum (optional)</label>
+          <input name="targetDate" type="date" value="${esc(g?.targetDate||'')}">
+        </div>
+        <div class="field full">
+          <label>Notizen</label>
+          <textarea name="notes">${esc(g?.notes||'')}</textarea>
+        </div>
+      </div>
+      ${g ? `<p class="note">Der aktuelle Stand wird über „Einzahlen" / „Rückbuchen" angepasst.</p>` : ''}
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
+}
 
-  if(!c)return;
+function saveGoal(ev,gid){
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  const name=String(fd.get('name')).trim();
+  const targetAmount=Number(fd.get('targetAmount'))||0;
 
-  if(
-    !confirm(
-      `Kategorie „${c.name}“ löschen? `+
-      'Sie wird auch aus vorhandenen Buchungen '+
-      'und Vorlagen entfernt.'
-    )
-  ){
-    return;
-  }
+  if(!name || !targetAmount){ alert('Bitte Bezeichnung und Zielbetrag prüfen.'); return false; }
 
-  state.categories=
-    state.categories.filter(
-      x=>x.id!==cid
-    );
-
-  state.transactions.forEach(
-    t=>{
-      t.categories=
-        (t.categories||[])
-        .filter(
-          x=>x!==cid
-        );
+  if(gid){
+    const g=state.goals.find(x=>x.id===gid);
+    if(g){
+      g.name=name;
+      g.targetAmount=targetAmount;
+      g.targetDate=fd.get('targetDate')||'';
+      g.notes=String(fd.get('notes')||'').trim();
     }
-  );
-
-  state.recurring.forEach(
-    r=>{
-      r.categories=
-        (r.categories||[])
-        .filter(
-          x=>x!==cid
-        );
-    }
-  );
+  }else{
+    const startAmount=Number(fd.get('startAmount'))||0;
+    const history=startAmount>0 ? [{id:id(), date:today(), amount:startAmount, kind:'in', note:'Startbetrag'}] : [];
+    state.goals.push({
+      id:id(), name, targetAmount,
+      targetDate:fd.get('targetDate')||'',
+      notes:String(fd.get('notes')||'').trim(),
+      history
+    });
+  }
 
   save();
-
-  renderLists();
+  closeModal();
+  render();
+  return false;
 }
 
+function deleteGoal(gid){
+  if(!confirm('Dieses Sparziel wirklich löschen? Der gesamte Verlauf geht dabei verloren.')) return;
+  state.goals=state.goals.filter(x=>x.id!==gid);
+  save();
+  render();
+}
+
+function openGoalTransaction(gid,kind){
+  const g=state.goals.find(x=>x.id===gid);
+  if(!g) return;
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>${kind==='in'?'Einzahlen':'Rückbuchen'} · ${esc(g.name)}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="return saveGoalTransaction(event,'${gid}','${kind}')">
+      <div class="formgrid">
+        <div class="field"><label>Betrag (€)</label><input name="amount" type="number" step="0.01" min="0.01" required></div>
+        <div class="field"><label>Datum</label><input name="date" type="date" required value="${esc(today())}"></div>
+        <div class="field full"><label>Notiz (optional)</label><input name="note" maxlength="80"></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
+}
+
+function saveGoalTransaction(ev,gid,kind){
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  const amount=Number(fd.get('amount'))||0;
+
+  if(amount<=0){ alert('Bitte einen gültigen Betrag eingeben.'); return false; }
+
+  const g=state.goals.find(x=>x.id===gid);
+  if(!g) return false;
+
+  g.history.push({id:id(), date:fd.get('date'), amount, kind, note:String(fd.get('note')||'').trim()});
+
+  save();
+  closeModal();
+  render();
+  return false;
+}
+
+function openGoalHistory(gid){
+  const g=state.goals.find(x=>x.id===gid);
+  if(!g) return;
+
+  const rows=[...g.history].sort((a,b)=>b.date.localeCompare(a.date));
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>Verlauf · ${esc(g.name)}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <div class="list">
+      ${rows.length ? rows.map(h=>`
+        <div class="row">
+          <div class="row-main">
+            <div class="row-title">${h.kind==='in'?'＋':'－'} ${money(h.amount)}</div>
+            <div class="row-sub">${esc(fmtDate(h.date))}${h.note?' · '+esc(h.note):''}</div>
+          </div>
+          <button class="btn small danger" onclick="deleteGoalHistoryEntry('${gid}','${h.id}')">Löschen</button>
+        </div>
+      `).join('') : `<div class="empty">Noch keine Bewegungen.</div>`}
+    </div>
+    <div class="actions"><button class="btn secondary" onclick="closeModal()">Schließen</button></div>
+  `;
+  showModal();
+}
+
+function deleteGoalHistoryEntry(gid,hid){
+  const g=state.goals.find(x=>x.id===gid);
+  if(!g) return;
+  const idx=g.history.findIndex(h=>h.id===hid);
+  if(idx<0) return;
+
+  const removed=g.history[idx];
+  g.history.splice(idx,1);
+  save();
+  openGoalHistory(gid);
+  showUndoToast('Eintrag gelöscht.', ()=>{ g.history.splice(idx,0,removed); });
+}
+
+/* =========================
+   RÜCKLAGEN
+========================= */
+
+function openReserveEditor(rid=null){
+  const r=rid ? state.reserves.find(x=>x.id===rid) : null;
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>${r?'Rücklage bearbeiten':'Neue Rücklage'}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="return saveReserve(event,'${rid||''}')">
+      <div class="formgrid">
+        <div class="field full"><label>Bezeichnung</label><input name="name" required maxlength="60" value="${esc(r?.name||'')}"></div>
+        <div class="field full"><label>Notizen (optional)</label><textarea name="notes">${esc(r?.notes||'')}</textarea></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
+}
+
+function saveReserve(ev,rid){
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  const name=String(fd.get('name')).trim();
+  const notes=String(fd.get('notes')||'').trim();
+
+  if(!name){ alert('Bitte eine Bezeichnung angeben.'); return false; }
+
+  if(rid){
+    const r=state.reserves.find(x=>x.id===rid);
+    if(r){ r.name=name; r.notes=notes; }
+  }else{
+    state.reserves.push({id:id(), name, notes});
+  }
+
+  save();
+  closeModal();
+  render();
+  return false;
+}
+
+function deleteReserve(rid){
+  if(!confirm('Diese Rücklage wirklich löschen? Alle zugehörigen Bewegungen werden ebenfalls gelöscht.')) return;
+
+  state.reserves=state.reserves.filter(x=>x.id!==rid);
+  state.reserveEntries=state.reserveEntries.filter(e=>e.reserveId!==rid);
+
+  save();
+  render();
+}
+
+function openReserveTransaction(reserveId,kind){
+  const r=state.reserves.find(x=>x.id===reserveId);
+  if(!r) return;
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>${kind==='in'?'Einzahlen':'Rückbuchen'} · ${esc(r.name)}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="return saveReserveTransaction(event,'${reserveId}','${kind}')">
+      <div class="formgrid">
+        <div class="field"><label>Betrag (€)</label><input name="amount" type="number" step="0.01" min="0.01" required></div>
+        <div class="field"><label>Datum</label><input name="date" type="date" required value="${esc(today())}"></div>
+        <div class="field full"><label>Notiz (optional)</label><input name="note" maxlength="80"></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
+}
+
+function saveReserveTransaction(ev,reserveId,kind){
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  const amount=Number(fd.get('amount'))||0;
+
+  if(amount<=0){ alert('Bitte einen gültigen Betrag eingeben.'); return false; }
+
+  state.reserveEntries.push({id:id(), reserveId, date:fd.get('date'), amount, kind, note:String(fd.get('note')||'').trim()});
+
+  save();
+  closeModal();
+  render();
+  return false;
+}
+
+function editReserveEntry(eid){
+  const e=state.reserveEntries.find(x=>x.id===eid);
+  if(!e) return;
+  const r=state.reserves.find(x=>x.id===e.reserveId);
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>Bewegung bearbeiten · ${esc(r?.name||'gelöschte Rücklage')}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <form onsubmit="return updateReserveEntry(event,'${eid}')">
+      <div class="formgrid">
+        <div class="field">
+          <label>Art</label>
+          <select name="kind">
+            <option value="in" ${e.kind==='in'?'selected':''}>Einzahlung</option>
+            <option value="out" ${e.kind==='out'?'selected':''}>Rückbuchung</option>
+          </select>
+        </div>
+        <div class="field"><label>Betrag (€)</label><input name="amount" type="number" step="0.01" min="0.01" required value="${esc(e.amount)}"></div>
+        <div class="field"><label>Datum</label><input name="date" type="date" required value="${esc(e.date)}"></div>
+        <div class="field full"><label>Notiz (optional)</label><input name="note" maxlength="80" value="${esc(e.note||'')}"></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn danger" onclick="deleteReserveEntry('${eid}')">Löschen</button>
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
+}
+
+function updateReserveEntry(ev,eid){
+  ev.preventDefault();
+  const fd=new FormData(ev.target);
+  const e=state.reserveEntries.find(x=>x.id===eid);
+  if(!e) return false;
+
+  e.kind=fd.get('kind');
+  e.amount=Number(fd.get('amount'))||0;
+  e.date=fd.get('date');
+  e.note=String(fd.get('note')||'').trim();
+
+  save();
+  closeModal();
+  render();
+  return false;
+}
+
+function deleteReserveEntry(eid){
+  const idx=state.reserveEntries.findIndex(x=>x.id===eid);
+  if(idx<0) return;
+  const removed=state.reserveEntries[idx];
+  state.reserveEntries.splice(idx,1);
+  save();
+  closeModal();
+  render();
+  showUndoToast('Bewegung gelöscht.', ()=>{ state.reserveEntries.splice(idx,0,removed); });
+}
 
 /* =========================
    WIEDERKEHRENDE POSTEN
 ========================= */
 
 function openRecurring(){
-
-  document.getElementById(
-    'modal'
-  ).innerHTML=`
-
+  document.getElementById('modal').innerHTML=`
     <div class="modalhead">
-
-      <h3>
-        Wiederkehrende Posten
-      </h3>
-
-      <button
-        class="close"
-        onclick="closeModal()"
-      >
-        ✕
-      </button>
-
+      <h3>Wiederkehrende Posten</h3>
+      <button class="close" onclick="closeModal()">✕</button>
     </div>
 
-
-    <div
-      class="toolbar"
-      style="margin-bottom:12px"
-    >
-
-      <button
-        class="btn"
-        onclick="editRecurring()"
-      >
-        ＋ Posten anlegen
-      </button>
-
+    <div class="toolbar" style="margin-bottom:12px">
+      <button class="btn" onclick="editRecurring()">＋ Posten anlegen</button>
     </div>
-
 
     <div class="list">
-
-      ${
-        state.recurring.length
-        ?
-        state.recurring
-          .map(
-            r=>`
-
-              <div class="row">
-
-                <div class="row-main">
-
-                  <div class="row-title">
-                    ${esc(r.name)}
-                  </div>
-
-                  <div class="row-sub">
-
-                    ${
-                      r.type==='income'
-                      ?'Einnahme'
-                      :'Ausgabe'
-                    }
-
-                    ·
-
-                    ${esc(
-                      recurringLabel(r)
-                    )}
-
-                    ·
-
-                    ${
-                      r.fixed
-                      ?'fest'
-                      :'nicht fest'
-                    }
-
-                    ${
-                      r.recurrence==='manual' &&
-                      r.annualOccurrences
-                      ?
-                      ` · ${
-                        r.annualOccurrences
-                      }×/Jahr`
-                      :
-                      ''
-                    }
-
-                  </div>
-
-                  <div>
-                    ${catsHtml(r.categories)}
-                  </div>
-
-                </div>
-
-
-                <div class="row-right">
-
-                  <strong>
-                    ${money(r.amount)}
-                  </strong>
-
-                  <div
-                    class="toolbar"
-                    style="
-                      justify-content:flex-end;
-                      margin-top:5px
-                    "
-                  >
-
-                    <button
-                      class="btn small secondary"
-                      onclick="
-                        editRecurring('${r.id}')
-                      "
-                    >
-                      Bearbeiten
-                    </button>
-
-                    <button
-                      class="btn small danger"
-                      onclick="
-                        deleteRecurring('${r.id}')
-                      "
-                    >
-                      Löschen
-                    </button>
-
-                  </div>
-
-                </div>
-
-              </div>
-
-            `
-          )
-          .join('')
-        :
-        `<div class="empty">
-          Noch keine wiederkehrenden Posten.
-        </div>`
-      }
-
+      ${state.recurring.length ? state.recurring.map(r=>`
+        <div class="row">
+          <div class="row-main">
+            <div class="row-title">${esc(r.name)}</div>
+            <div class="row-sub">
+              ${r.type==='income'?'Einnahme':'Ausgabe'} · ${esc(recurringLabel(r))} · ${r.fixed?'fest':'nicht fest'}
+              ${r.recurrence==='manual' && r.annualOccurrences ? ` · ${r.annualOccurrences}×/Jahr` : ''}
+            </div>
+            <div>${catsHtml(r.categories)}</div>
+          </div>
+          <div class="row-right">
+            <strong>${money(amountAt(r,today()))}</strong>
+            <div class="toolbar" style="justify-content:flex-end;margin-top:5px">
+              <button class="btn small secondary" onclick="editRecurring('${r.id}')">Bearbeiten</button>
+              <button class="btn small danger" onclick="deleteRecurring('${r.id}')">Löschen</button>
+            </div>
+          </div>
+        </div>
+      `).join('') : `<div class="empty">Noch keine wiederkehrenden Posten.</div>`}
     </div>
   `;
-
   showModal();
 }
 
-
 function editRecurring(rid=null){
+  const r=rid ? state.recurring.find(x=>x.id===rid) : null;
+  const currentAmount = r ? amountAt(r,today()) : '';
 
-  const r=
-    rid
-    ?
-    state.recurring.find(
-      x=>x.id===rid
-    )
-    :
-    null;
+  const historyNote = r && r.amountHistory && r.amountHistory.length>1
+    ? 'Bisherige Beträge: ' + [...r.amountHistory].sort((a,b)=>a.validFrom.localeCompare(b.validFrom))
+        .map(h=>money(h.amount)+' (ab '+fmtDate(h.validFrom)+')').join(', ')
+    : '';
 
-  document.getElementById(
-    'modal'
-  ).innerHTML=`
-
+  document.getElementById('modal').innerHTML=`
     <div class="modalhead">
-
-      <h3>
-        ${
-          r
-          ?'Posten bearbeiten'
-          :'Wiederkehrenden Posten anlegen'
-        }
-      </h3>
-
-      <button
-        class="close"
-        onclick="openRecurring()"
-      >
-        ✕
-      </button>
-
+      <h3>${r?'Posten bearbeiten':'Wiederkehrenden Posten anlegen'}</h3>
+      <button class="close" onclick="openRecurring()">✕</button>
     </div>
 
-
-    <form
-      onsubmit="
-        return saveRecurring(
-          event,
-          '${rid||''}'
-        )
-      "
-    >
-
+    <form onsubmit="return saveRecurring(event,'${rid||''}')">
       <div class="formgrid">
-
         <div class="field">
-
           <label>Art</label>
-
           <select name="type">
-
-            <option
-              value="expense"
-              ${
-                r?.type!=='income'
-                ?'selected'
-                :''
-              }
-            >
-              Ausgabe
-            </option>
-
-            <option
-              value="income"
-              ${
-                r?.type==='income'
-                ?'selected'
-                :''
-              }
-            >
-              Einnahme
-            </option>
-
+            <option value="expense" ${r?.type!=='income'?'selected':''}>Ausgabe</option>
+            <option value="income" ${r?.type==='income'?'selected':''}>Einnahme</option>
           </select>
-
         </div>
 
-
         <div class="field">
-
-          <label>Betrag</label>
-
-          <input
-            name="amount"
-            type="number"
-            step="0.01"
-            min="0"
-            required
-            value="${
-              r
-              ?esc(r.amount)
-              :''
-            }"
-          >
-
+          <label>Betrag${r?' (aktuell gültig)':''}</label>
+          <input name="amount" type="number" step="0.01" min="0" required value="${r?esc(currentAmount):''}">
+          ${historyNote ? `<span class="note">${esc(historyNote)}</span>` : ''}
         </div>
 
-
         <div class="field">
-
           <label>Bezeichnung</label>
-
-          <input
-            name="name"
-            required
-            maxlength="100"
-            value="${
-              esc(r?.name||'')
-            }"
-          >
-
+          <input name="name" required maxlength="100" value="${esc(r?.name||'')}">
         </div>
 
-
         <div class="field">
-
           <label>Startdatum</label>
-
-          <input
-            name="startDate"
-            type="date"
-            required
-            value="${
-              esc(
-                r?.startDate||
-                today()
-              )
-            }"
-          >
-
+          <input name="startDate" type="date" required value="${esc(r?.startDate||today())}">
         </div>
 
-
         <div class="field">
-
           <label>Wiederholung</label>
-
           <select name="recurrence">
-
-            <option
-              value="daily"
-              ${
-                r?.recurrence==='daily'
-                ?'selected'
-                :''
-              }
-            >
-              täglich
-            </option>
-
-            <option
-              value="weekly"
-              ${
-                r?.recurrence==='weekly'
-                ?'selected'
-                :''
-              }
-            >
-              wöchentlich
-            </option>
-
-            <option
-              value="monthly"
-              ${
-                r?.recurrence==='monthly'
-                ?'selected'
-                :''
-              }
-            >
-              monatlich
-            </option>
-
-            <option
-              value="quarterly"
-              ${
-                r?.recurrence==='quarterly'
-                ?'selected'
-                :''
-              }
-            >
-              vierteljährlich
-            </option>
-
-            <option
-              value="yearly"
-              ${
-                r?.recurrence==='yearly'
-                ?'selected'
-                :''
-              }
-            >
-              jährlich
-            </option>
-
-            <option
-              value="manual"
-              ${
-                r?.recurrence==='manual'
-                ?'selected'
-                :''
-              }
-            >
-              unregelmäßig / manuell
-            </option>
-
+            <option value="daily" ${r?.recurrence==='daily'?'selected':''}>täglich</option>
+            <option value="weekly" ${r?.recurrence==='weekly'?'selected':''}>wöchentlich</option>
+            <option value="monthly" ${r?.recurrence==='monthly'?'selected':''}>monatlich</option>
+            <option value="quarterly" ${r?.recurrence==='quarterly'?'selected':''}>vierteljährlich</option>
+            <option value="yearly" ${r?.recurrence==='yearly'?'selected':''}>jährlich</option>
+            <option value="manual" ${r?.recurrence==='manual'?'selected':''}>unregelmäßig / manuell</option>
           </select>
-
         </div>
-
 
         <div class="field">
-
-          <label>
-            Jährliche Anzahl bei unregelmäßig
-          </label>
-
-          <input
-            name="annualOccurrences"
-            type="number"
-            min="0"
-            step="1"
-            value="${
-              esc(
-                r?.annualOccurrences||0
-              )
-            }"
-          >
-
-          <span class="note">
-            Nur für die Berechnung
-            des Monatsäquivalents.
-          </span>
-
+          <label>Jährliche Anzahl bei unregelmäßig</label>
+          <input name="annualOccurrences" type="number" min="0" step="1" value="${esc(r?.annualOccurrences||0)}">
+          <span class="note">Nur für die Berechnung des Monatsäquivalents.</span>
         </div>
 
-
         <div class="field full">
-
-          <label>
-            Kategorie(n)
-          </label>
-
+          <label>Kategorie(n)</label>
           <div class="checkgrid">
-
-            ${
-              state.categories
-                .map(
-                  c=>`
-
-                    <label class="check">
-
-                      <input
-                        type="checkbox"
-                        name="cat"
-                        value="${c.id}"
-                        ${
-                          r?.categories?.includes(c.id)
-                          ?'checked'
-                          :''
-                        }
-                      >
-
-                      ${esc(c.name)}
-
-                    </label>
-
-                  `
-                )
-                .join('')
-            }
-
+            ${state.categories.map(c=>`
+              <label class="check">
+                <input type="checkbox" name="cat" value="${c.id}" ${r?.categories?.includes(c.id)?'checked':''}>
+                ${esc(c.name)}
+              </label>
+            `).join('')}
           </div>
-
         </div>
 
-
         <div class="field full">
-
-          <label>
-            Notizen
-          </label>
-
-          <textarea name="notes">${
-            esc(r?.notes||'')
-          }</textarea>
-
+          <label>Notizen</label>
+          <textarea name="notes">${esc(r?.notes||'')}</textarea>
         </div>
 
-
         <div class="field full">
-
           <label class="check">
-
-            <input
-              type="checkbox"
-              name="fixed"
-              ${
-                r?.fixed
-                ?'checked'
-                :''
-              }
-            >
-
-            Als feste Ausgabe / festen Posten
-            analysieren
-
+            <input type="checkbox" name="fixed" ${r?.fixed?'checked':''}>
+            Als feste Ausgabe / festen Posten analysieren
           </label>
-
         </div>
-
       </div>
-
 
       <div class="actions">
-
-        <button
-          type="button"
-          class="btn secondary"
-          onclick="openRecurring()"
-        >
-          Abbrechen
-        </button>
-
-        <button class="btn">
-          Speichern
-        </button>
-
+        <button type="button" class="btn secondary" onclick="openRecurring()">Abbrechen</button>
+        <button class="btn">Speichern</button>
       </div>
-
     </form>
   `;
+  showModal();
 }
 
-
 function saveRecurring(ev,rid){
-
   ev.preventDefault();
-
-  const f=ev.target;
-
-  const fd=new FormData(f);
+  const fd=new FormData(ev.target);
 
   const obj={
-
     id:rid||id(),
-
     type:fd.get('type'),
-
-    amount:
-      Math.round(
-        Number(fd.get('amount'))*100
-      )/100,
-
-    name:
-      String(
-        fd.get('name')
-      ).trim(),
-
-    startDate:
-      fd.get('startDate'),
-
-    recurrence:
-      fd.get('recurrence'),
-
-    annualOccurrences:
-      Number(
-        fd.get('annualOccurrences')
-      )||0,
-
-    categories:
-      fd.getAll('cat'),
-
-    notes:
-      String(
-        fd.get('notes')||''
-      ).trim(),
-
-    fixed:
-      fd.has('fixed'),
-
+    amount:Math.round(Number(fd.get('amount'))*100)/100,
+    name:String(fd.get('name')).trim(),
+    startDate:fd.get('startDate'),
+    recurrence:fd.get('recurrence'),
+    annualOccurrences:Number(fd.get('annualOccurrences'))||0,
+    categories:fd.getAll('cat'),
+    notes:String(fd.get('notes')||'').trim(),
+    fixed:fd.has('fixed'),
     active:true
   };
 
-
-  if(
-    !obj.amount ||
-    !obj.name ||
-    !obj.startDate
-  ){
-
-    alert(
-      'Bitte Betrag, Bezeichnung und Startdatum prüfen.'
-    );
-
+  if(!obj.amount || !obj.name || !obj.startDate){
+    alert('Bitte Betrag, Bezeichnung und Startdatum prüfen.');
     return false;
   }
 
+  const existing = rid ? state.recurring.find(x=>x.id===rid) : null;
 
-  const i=
-    state.recurring.findIndex(
-      x=>x.id===obj.id
-    );
-
-  if(i>=0){
-
-    state.recurring[i]=obj;
-
-  }else{
-
-    state.recurring.push(obj);
+  if(existing && Math.round(amountAt(existing,today())*100)!==Math.round(obj.amount*100)){
+    pendingRecurringEdit={rid, obj};
+    openRecurringEffectiveDate(existing, obj.amount);
+    return false;
   }
 
-
-  save();
-
-  openRecurring();
-
+  finalizeRecurringSave(obj, rid, null);
   return false;
 }
 
+function openRecurringEffectiveDate(existing,newAmount){
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>Ab wann gilt der neue Betrag?</h3>
+      <button class="close" onclick="editRecurring('${existing.id}')">✕</button>
+    </div>
+    <p class="note">„${esc(existing.name)}" ändert sich von ${money(amountAt(existing,today()))} auf ${money(newAmount)}. Bis zu diesem Datum gilt weiterhin der bisherige Betrag, danach automatisch der neue.</p>
+    <div class="field">
+      <label>Neuer Betrag gültig ab</label>
+      <input id="effDate" type="date" value="${esc(today())}">
+    </div>
+    <div class="actions">
+      <button type="button" class="btn secondary" onclick="editRecurring('${existing.id}')">Abbrechen</button>
+      <button class="btn" onclick="confirmRecurringEffectiveDate()">Übernehmen</button>
+    </div>
+  `;
+  showModal();
+}
 
-function deleteRecurring(rid){
+function confirmRecurringEffectiveDate(){
+  if(!pendingRecurringEdit) return;
+  const effDate=document.getElementById('effDate').value;
+  if(!effDate){ alert('Bitte ein Datum wählen.'); return; }
 
-  if(
-    !confirm(
-      'Diesen wiederkehrenden Posten löschen? '+
-      'Bereits gespeicherte Buchungen bleiben erhalten.'
-    )
-  ){
-    return;
+  finalizeRecurringSave(pendingRecurringEdit.obj, pendingRecurringEdit.rid, effDate);
+  pendingRecurringEdit=null;
+}
+
+function finalizeRecurringSave(obj,rid,effectiveDate){
+  const existing = rid ? state.recurring.find(x=>x.id===rid) : null;
+  let history;
+
+  if(existing){
+    history = (existing.amountHistory && existing.amountHistory.length)
+      ? [...existing.amountHistory]
+      : [{amount:existing.amount, validFrom:existing.startDate}];
+
+    if(effectiveDate){
+      history = history.filter(h=>h.validFrom < effectiveDate);
+      history.push({amount:obj.amount, validFrom:effectiveDate});
+      history.sort((a,b)=>a.validFrom.localeCompare(b.validFrom));
+    }
+  }else{
+    history=[{amount:obj.amount, validFrom:obj.startDate}];
   }
 
-  state.recurring=
-    state.recurring.filter(
-      x=>x.id!==rid
-    );
+  obj.amountHistory=history;
 
-  state.transactions.forEach(
-    t=>{
-      if(t.recurringTemplateId===rid){
-        t.recurringTemplateId=null;
-      }
-    }
-  );
+  if(existing){
+    Object.assign(existing, obj);
+  }else{
+    state.recurring.push(obj);
+  }
 
   save();
-
   openRecurring();
 }
 
+function deleteRecurring(rid){
+  if(!confirm('Diesen wiederkehrenden Posten löschen? Bereits gespeicherte Buchungen bleiben erhalten.')) return;
+
+  state.recurring=state.recurring.filter(x=>x.id!==rid);
+  state.transactions.forEach(t=>{ if(t.recurringTemplateId===rid) t.recurringTemplateId=null; });
+
+  save();
+  openRecurring();
+}
 
 /* =========================
    EINSTELLUNGEN
 ========================= */
 
 function openSettings(){
-
-  document.getElementById(
-    'modal'
-  ).innerHTML=`
-
+  document.getElementById('modal').innerHTML=`
     <div class="modalhead">
-
-      <h3>
-        Einstellungen & Datentransfer
-      </h3>
-
-      <button
-        class="close"
-        onclick="closeModal()"
-      >
-        ✕
-      </button>
-
+      <h3>Einstellungen &amp; Datentransfer</h3>
+      <button class="close" onclick="closeModal()">✕</button>
     </div>
 
+    <h3 style="font-size:14px;margin-bottom:8px">Darstellung</h3>
+    <div class="themepicker" style="margin-bottom:16px">
+      <button type="button" class="chip ${state.settings.theme==='light'?'on':''}" onclick="setTheme('light'); openSettings()">☀ Hell</button>
+      <button type="button" class="chip ${state.settings.theme==='dark'?'on':''}" onclick="setTheme('dark'); openSettings()">☾ Dunkel</button>
+      <button type="button" class="chip ${state.settings.theme==='system'?'on':''}" onclick="setTheme('system'); openSettings()">◐ System</button>
+    </div>
 
     <div class="formgrid">
-
       <div class="field">
-
-        <label>
-          Start-/Eröffnungsbestand
-        </label>
-
-        <input
-          id="setOpening"
-          type="number"
-          step="0.01"
-          value="${
-            esc(
-              state.settings.openingBalance
-            )
-          }"
-        >
-
+        <label>Start-/Eröffnungsbestand</label>
+        <input id="setOpening" type="number" step="0.01" value="${esc(state.settings.openingBalance)}">
       </div>
-
-
       <div class="field">
-
         <label>Währung</label>
-
         <select id="setCurrency">
-
-          <option
-            value="EUR"
-            ${
-              state.settings.currency==='EUR'
-              ?'selected'
-              :''
-            }
-          >
-            Euro (€)
-          </option>
-
-          <option
-            value="CHF"
-            ${
-              state.settings.currency==='CHF'
-              ?'selected'
-              :''
-            }
-          >
-            Schweizer Franken (CHF)
-          </option>
-
-          <option
-            value="USD"
-            ${
-              state.settings.currency==='USD'
-              ?'selected'
-              :''
-            }
-          >
-            US-Dollar ($)
-          </option>
-
+          <option value="EUR" ${state.settings.currency==='EUR'?'selected':''}>Euro (€)</option>
+          <option value="CHF" ${state.settings.currency==='CHF'?'selected':''}>Schweizer Franken (CHF)</option>
+          <option value="USD" ${state.settings.currency==='USD'?'selected':''}>US-Dollar ($)</option>
         </select>
-
       </div>
-
     </div>
 
+    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
 
-    <hr
-      style="
-        border:0;
-        border-top:1px solid var(--line);
-        margin:18px 0
-      "
-    >
-
-
-    <h3>
-      Ampel-Grenzwerte
-    </h3>
-
-    <p class="note">
-
-      Grün ab dem grünen Wert.
-      Gelb ab dem gelben Wert.
-      Darunter wird Rot angezeigt.
-      Jede Ampel kann unabhängig eingestellt
-      werden.
-
-    </p>
-
+    <h3 style="font-size:16px">Ampel-Grenzwerte</h3>
+    <p class="note">Grün ab dem grünen Wert. Gelb ab dem gelben Wert. Darunter wird Rot angezeigt.</p>
 
     <div class="formgrid">
-
-      <div class="field">
-
-        <label>
-          IST-Stand – Grün ab
-        </label>
-
-        <input
-          id="bG"
-          type="number"
-          value="${
-            esc(
-              state.settings.ampel
-                .balance.green
-            )
-          }"
-        >
-
-      </div>
-
-
-      <div class="field">
-
-        <label>
-          IST-Stand – Gelb ab
-        </label>
-
-        <input
-          id="bY"
-          type="number"
-          value="${
-            esc(
-              state.settings.ampel
-                .balance.yellow
-            )
-          }"
-        >
-
-      </div>
-
-
-      <div class="field">
-
-        <label>
-          Bereinigter Stand – Grün ab
-        </label>
-
-        <input
-          id="aG"
-          type="number"
-          value="${
-            esc(
-              state.settings.ampel
-                .adjusted.green
-            )
-          }"
-        >
-
-      </div>
-
-
-      <div class="field">
-
-        <label>
-          Bereinigter Stand – Gelb ab
-        </label>
-
-        <input
-          id="aY"
-          type="number"
-          value="${
-            esc(
-              state.settings.ampel
-                .adjusted.yellow
-            )
-          }"
-        >
-
-      </div>
-
-
-      <div class="field">
-
-        <label>
-          Ausgaben – Grün bis
-        </label>
-
-        <input
-          id="eG"
-          type="number"
-          value="${
-            esc(
-              state.settings.ampel
-                .monthExpense.green
-            )
-          }"
-        >
-
-      </div>
-
-
-      <div class="field">
-
-        <label>
-          Ausgaben – Gelb bis
-        </label>
-
-        <input
-          id="eY"
-          type="number"
-          value="${
-            esc(
-              state.settings.ampel
-                .monthExpense.yellow
-            )
-          }"
-        >
-
-      </div>
-
+      <div class="field"><label>IST-Stand – Grün ab</label><input id="bG" type="number" value="${esc(state.settings.ampel.balance.green)}"></div>
+      <div class="field"><label>IST-Stand – Gelb ab</label><input id="bY" type="number" value="${esc(state.settings.ampel.balance.yellow)}"></div>
+      <div class="field"><label>Frei verfügbar – Grün ab</label><input id="aG" type="number" value="${esc(state.settings.ampel.available.green)}"></div>
+      <div class="field"><label>Frei verfügbar – Gelb ab</label><input id="aY" type="number" value="${esc(state.settings.ampel.available.yellow)}"></div>
+      <div class="field"><label>Ausgaben – Grün bis</label><input id="eG" type="number" value="${esc(state.settings.ampel.monthExpense.green)}"></div>
+      <div class="field"><label>Ausgaben – Gelb bis</label><input id="eY" type="number" value="${esc(state.settings.ampel.monthExpense.yellow)}"></div>
     </div>
 
+    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
 
-    <hr
-      style="
-        border:0;
-        border-top:1px solid var(--line);
-        margin:18px 0
-      "
-    >
+    <h3 style="font-size:16px">Zum Home-Bildschirm hinzufügen</h3>
+    <p class="note">Auf dem iPhone: Teilen-Symbol in Safari antippen, dann „Zum Home-Bildschirm". FinanzPlan öffnet sich danach wie eine eigene App, ohne Safari-Leiste.</p>
 
+    <hr style="border:0;border-top:1px solid var(--line);margin:18px 0">
 
-    <h3>
-      Datentransfer
-    </h3>
-
-
+    <h3 style="font-size:16px">Datentransfer</h3>
     <div class="toolbar">
-
-      <button
-        class="btn"
-        onclick="exportData()"
-      >
-        Daten exportieren
-      </button>
-
-      <button
-        class="btn secondary"
-        onclick="
-          document
-            .getElementById('importFile')
-            .click()
-        "
-      >
-        Daten importieren
-      </button>
-
-      <button
-        class="btn danger"
-        onclick="resetData()"
-      >
-        Alles zurücksetzen
-      </button>
-
+      <button class="btn" onclick="exportData()">Daten exportieren</button>
+      <button class="btn secondary" onclick="document.getElementById('importFile').click()">Daten importieren</button>
+      <button class="btn danger" onclick="resetData()">Alles zurücksetzen</button>
     </div>
-
 
     <div class="actions">
-
-      <button
-        class="btn"
-        onclick="saveSettings()"
-      >
-        Speichern
-      </button>
-
+      <button class="btn" onclick="saveSettings()">Speichern</button>
     </div>
   `;
-
   showModal();
 }
 
-
 function saveSettings(){
-
-  state.settings.openingBalance=
-    Number(
-      document.getElementById(
-        'setOpening'
-      ).value
-    )||0;
-
-  state.settings.currency=
-    document.getElementById(
-      'setCurrency'
-    ).value;
-
+  state.settings.openingBalance=Number(document.getElementById('setOpening').value)||0;
+  state.settings.currency=document.getElementById('setCurrency').value;
 
   state.settings.ampel.balance={
-    green:
-      Number(
-        document.getElementById('bG').value
-      )||0,
-
-    yellow:
-      Number(
-        document.getElementById('bY').value
-      )||0
+    green:Number(document.getElementById('bG').value)||0,
+    yellow:Number(document.getElementById('bY').value)||0
   };
-
-
-  state.settings.ampel.adjusted={
-    green:
-      Number(
-        document.getElementById('aG').value
-      )||0,
-
-    yellow:
-      Number(
-        document.getElementById('aY').value
-      )||0
+  state.settings.ampel.available={
+    green:Number(document.getElementById('aG').value)||0,
+    yellow:Number(document.getElementById('aY').value)||0
   };
-
-
   state.settings.ampel.monthExpense={
-    green:
-      Number(
-        document.getElementById('eG').value
-      )||0,
-
-    yellow:
-      Number(
-        document.getElementById('eY').value
-      )||0
+    green:Number(document.getElementById('eG').value)||0,
+    yellow:Number(document.getElementById('eY').value)||0
   };
-
 
   save();
-
   closeModal();
-
   render();
 }
-
 
 /* =========================
    DATENTRANSFER
 ========================= */
 
 function exportData(){
-
-  const blob=
-    new Blob(
-      [
-        JSON.stringify(
-          state,
-          null,
-          2
-        )
-      ],
-      {
-        type:'application/json'
-      }
-    );
-
-  const url=
-    URL.createObjectURL(blob);
-
-  const a=
-    document.createElement('a');
-
+  const blob=new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+  const url=URL.createObjectURL(blob);
+  const a=document.createElement('a');
   a.href=url;
-
-  a.download=
-    `FinanzPlan-Sicherung-${today()}.json`;
-
+  a.download=`FinanzPlan-Sicherung-${today()}.json`;
   a.click();
-
-  setTimeout(
-    ()=>URL.revokeObjectURL(url),
-    1000
-  );
+  setTimeout(()=>URL.revokeObjectURL(url),1000);
 }
 
+document.getElementById('importFile').addEventListener('change', e=>{
+  const f=e.target.files[0];
+  if(!f) return;
 
-document
-  .getElementById('importFile')
-  .addEventListener(
-    'change',
-    e=>{
+  const r=new FileReader();
+  r.onload=()=>{
+    try{
+      const imported=JSON.parse(r.result);
+      if(!imported || !Array.isArray(imported.transactions) || !Array.isArray(imported.categories) || !Array.isArray(imported.recurring)){
+        throw Error();
+      }
+      if(!confirm('Import ersetzt den aktuellen Datenbestand. Fortfahren?')) return;
 
-      const f=e.target.files[0];
-
-      if(!f)return;
-
-      const r=new FileReader();
-
-      r.onload=()=>{
-
-        try{
-
-          const imported=
-            JSON.parse(r.result);
-
-          if(
-            !imported ||
-            !Array.isArray(
-              imported.transactions
-            ) ||
-            !Array.isArray(
-              imported.categories
-            ) ||
-            !Array.isArray(
-              imported.recurring
-            )
-          ){
-
-            throw Error();
-          }
-
-
-          if(
-            !confirm(
-              'Import ersetzt den aktuellen Datenbestand. Fortfahren?'
-            )
-          ){
-
-            return;
-          }
-
-
-          state=
-            normalize(imported);
-
-          save();
-
-          render();
-
-          alert(
-            'Daten erfolgreich importiert.'
-          );
-
-        }catch(err){
-
-          alert(
-            'Die Datei ist keine gültige FinanzPlan-Sicherung.'
-          );
-        }
-      };
-
-      r.readAsText(f);
-
-      e.target.value='';
+      state=normalize(imported);
+      save();
+      render();
+      alert('Daten erfolgreich importiert.');
+    }catch(err){
+      alert('Die Datei ist keine gültige FinanzPlan-Sicherung.');
     }
-  );
-
+  };
+  r.readAsText(f);
+  e.target.value='';
+});
 
 function resetData(){
-
-  if(
-    !confirm(
-      'Wirklich ALLE Daten löschen? '+
-      'Dieser Schritt kann nur mit einer '+
-      'vorherigen Sicherung rückgängig gemacht werden.'
-    )
-  ){
-
-    return;
-  }
-
-
-  if(
-    !confirm(
-      'Letzte Sicherheitsabfrage: '+
-      'Daten endgültig löschen?'
-    )
-  ){
-
-    return;
-  }
-
+  if(!confirm('Wirklich ALLE Daten löschen? Dieser Schritt kann nur mit einer vorherigen Sicherung rückgängig gemacht werden.')) return;
+  if(!confirm('Letzte Sicherheitsabfrage: Daten endgültig löschen?')) return;
 
   localStorage.removeItem(KEY);
-
-  state=
-    normalize({});
-
+  state=normalize({});
   closeModal();
-
   render();
 }
-
 
 /* =========================
    MODAL
 ========================= */
 
 function showModal(){
-
-  document
-    .getElementById('modalBack')
-    .classList.add('show');
-
+  document.getElementById('modalBack').classList.add('show');
   document.body.style.overflow='hidden';
 }
 
-
 function closeModal(){
-
-  document
-    .getElementById('modalBack')
-    .classList.remove('show');
-
+  document.getElementById('modalBack').classList.remove('show');
   document.body.style.overflow='';
 }
 
-
 function backdropClose(e){
-
-  if(
-    e.target.id==='modalBack'
-  ){
-
-    closeModal();
-  }
+  if(e.target.id==='modalBack') closeModal();
 }
 
-
-window.addEventListener(
-  'keydown',
-  e=>{
-    if(e.key==='Escape'){
-      closeModal();
-    }
-  }
-);
-
+window.addEventListener('keydown', e=>{
+  if(e.key==='Escape') closeModal();
+});
 
 /* =========================
    START
 ========================= */
 
+applyTheme();
 render();
 
 </script>
-
 </body>
 </html>
