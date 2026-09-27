@@ -665,6 +665,7 @@ function normalize(s){
       ? r.amountHistory.map(h=>({amount:Number(h.amount)||0, validFrom:h.validFrom||r.startDate||today()}))
       : [{amount:Number(r.amount)||0, validFrom:r.startDate||today()}],
     startDate:r.startDate||today(),
+    endDate:r.endDate||'',
     recurrence:r.recurrence||'monthly',
     categories:Array.isArray(r.categories)?r.categories:[],
     notes:r.notes||'',
@@ -704,6 +705,17 @@ function normalize(s){
     amount:Number(e.amount)||0, kind:e.kind||'in', note:e.note||''
   })) : [];
 
+  const specialAccounts = Array.isArray(s.specialAccounts) ? s.specialAccounts.map(sa=>({
+    id:sa.id||id(),
+    name:sa.name||'Sonderkonto',
+    categoryId:sa.categoryId||'',
+    openingBalance:Number(sa.openingBalance)||0,
+    transactions:Array.isArray(sa.transactions) ? sa.transactions.map(t=>({
+      id:t.id||id(), type:t.type||'expense', amount:Number(t.amount)||0,
+      date:t.date||today(), note:t.note||''
+    })) : []
+  })) : [];
+
   return {
     version:3,
 
@@ -712,6 +724,7 @@ function normalize(s){
         currency:'EUR',
         openingBalance:0,
         theme:'system',
+        activeSpecialAccountId:'',
         ampel:{
           balance:{green:1000,yellow:0},
           available:{green:1000,yellow:0},
@@ -743,7 +756,8 @@ function normalize(s){
     favorites,
     goals,
     reserves,
-    reserveEntries
+    reserveEntries,
+    specialAccounts
   };
 }
 
@@ -945,7 +959,8 @@ function amountAt(tpl,date){
 function occurrenceDates(tpl,a,b){
   const out=[];
   let cur=dateObj(tpl.startDate);
-  const end=dateObj(b);
+  const hardEnd = tpl.endDate && tpl.endDate<b ? tpl.endDate : b;
+  const end=dateObj(hardEnd);
   const from=dateObj(a);
 
   if(tpl.recurrence==='manual') return out;
@@ -988,6 +1003,21 @@ function occurrenceDates(tpl,a,b){
   return out;
 }
 
+function nextOccurrenceDate(tpl,fromDate){
+  if(!tpl || tpl.recurrence==='manual' || tpl.active===false) return null;
+  if(tpl.endDate && tpl.endDate<fromDate) return null;
+
+  let horizon=addDays(fromDate,400);
+  if(tpl.endDate && tpl.endDate<horizon) horizon=tpl.endDate;
+
+  const dates=occurrenceDates(tpl,fromDate,horizon);
+  for(const d of dates){
+    const booked=state.transactions.some(t=>t.recurringTemplateId===tpl.id && t.date===d);
+    if(!booked) return d;
+  }
+  return null;
+}
+
 function virtualOccurrences(a,b){
   const rows=[];
   for(const r of state.recurring.filter(x=>x.active!==false && x.recurrence!=='manual')){
@@ -1012,6 +1042,7 @@ function expectedRows(a,b,type){
 }
 
 function monthlyEquivalent(r){
+  if(r.endDate && r.endDate<today()) return 0;
   const a=amountAt(r, today());
   switch(r.recurrence){
     case'daily': return a*365/12;
@@ -1057,6 +1088,62 @@ function reservesTotalAt(date){
 
 function goalsTotalAt(date){
   return sum(state.goals.flatMap(g=>g.history), h=>h.date<=date ? (h.kind==='in'?h.amount:-h.amount) : 0);
+}
+
+/* =========================
+   SONDERKONTO
+========================= */
+
+function activeSpecialAccount(){
+  const sid=state.settings.activeSpecialAccountId;
+  return sid ? state.specialAccounts.find(x=>x.id===sid) : null;
+}
+
+function specialAccountBalance(sa){
+  return (Number(sa.openingBalance)||0) + sum(sa.transactions, x=>x.type==='income'?x.amount:-x.amount);
+}
+
+function specialAccountIncome(sa){
+  return sum(sa.transactions.filter(x=>x.type==='income'),x=>x.amount);
+}
+
+function specialAccountSpent(sa){
+  return sum(sa.transactions.filter(x=>x.type==='expense'),x=>x.amount);
+}
+
+function toggleSpecialAccount(categoryId){
+  let sa=state.specialAccounts.find(x=>x.categoryId===categoryId);
+  if(!sa){
+    const cat=state.categories.find(c=>c.id===categoryId);
+    sa={id:id(), name:cat?cat.name:'Sonderkonto', categoryId, openingBalance:0, transactions:[]};
+    state.specialAccounts.push(sa);
+  }
+  toggleSpecialAccountById(sa.id);
+}
+
+function toggleSpecialAccountById(saId){
+  state.settings.activeSpecialAccountId = state.settings.activeSpecialAccountId===saId ? '' : saId;
+  save();
+  render();
+  openBudgetOverview();
+}
+
+function deactivateSpecialAccount(){
+  state.settings.activeSpecialAccountId='';
+  save();
+  render();
+}
+
+function resetSpecialAccount(){
+  const sa=activeSpecialAccount();
+  if(!sa) return;
+  if(!confirm(`„${sa.name}" wirklich zurücksetzen? Alle Buchungen in diesem Sonderkonto werden unwiderruflich gelöscht.`)) return;
+  if(!confirm('Letzte Sicherheitsabfrage: Sonderkonto wirklich leeren?')) return;
+
+  sa.transactions=[];
+  sa.openingBalance=0;
+  save();
+  render();
 }
 
 /* Kernkennzahl: Frei verfügbar bis Monatsende */
@@ -1112,6 +1199,13 @@ function spentThisMonthForCat(cid){
 
 function renderDashboard(){
   const el=document.getElementById('page-dashboard');
+
+  const sa=activeSpecialAccount();
+  if(sa){
+    el.innerHTML=renderSpecialAccountDashboard(sa);
+    return;
+  }
+
   const t=today();
   const ms=startMonth(t);
   const me=endMonth(t);
@@ -1182,6 +1276,8 @@ function renderDashboard(){
 
     ${upcomingAmountChangesHtml()}
 
+    ${irregularExpensesHtml(ms)}
+
     ${favoritesChipsHtml()}
 
     ${budgetWarningsHtml(ms,t)}
@@ -1225,7 +1321,18 @@ function upcomingAmountChangesHtml(){
     const hist=(r.amountHistory||[]).slice().sort((a,b)=>a.validFrom.localeCompare(b.validFrom));
     const future=hist.find(h=>h.validFrom>t);
     if(future){
-      rows.push({ name:r.name, from:amountAt(r,t), to:future.amount, date:future.validFrom });
+      rows.push({
+        date:future.validFrom,
+        left:`${esc(r.name)} · ab ${esc(fmtDate(future.validFrom))}`,
+        right:`${money(amountAt(r,t))} → ${money(future.amount)}`
+      });
+    }
+    if(r.endDate && r.endDate>=t){
+      rows.push({
+        date:r.endDate,
+        left:`${esc(r.name)} · letzte Abbuchung`,
+        right:esc(fmtDate(r.endDate))
+      });
     }
   }
 
@@ -1238,12 +1345,192 @@ function upcomingAmountChangesHtml(){
       <div class="section-title"><h2>Anstehende Änderungen</h2></div>
       ${rows.map(x=>`
         <div class="statline">
-          <span>${esc(x.name)} · ab ${esc(fmtDate(x.date))}</span>
-          <strong>${money(x.from)} → ${money(x.to)}</strong>
+          <span>${x.left}</span>
+          <strong>${x.right}</strong>
         </div>
       `).join('')}
     </div>
   `;
+}
+
+function irregularExpensesHtml(ms){
+  const ns=addMonths(ms,1);
+  const neOneMonth=endMonth(ns);
+  const neThreeMonths=endMonth(addMonths(ms,3));
+
+  const irregular=rows=>rows
+    .filter(x=>{
+      const tpl=state.recurring.find(r=>r.id===x.recurringTemplateId);
+      return tpl && (tpl.recurrence==='quarterly' || tpl.recurrence==='yearly');
+    })
+    .sort((a,b)=>a.date.localeCompare(b.date));
+
+  const nextMonthRows=irregular(expectedRows(ns,neOneMonth,'expense'));
+  const threeMonthRows=irregular(expectedRows(ns,neThreeMonths,'expense'));
+
+  if(!threeMonthRows.length) return '';
+
+  return `
+    <div class="card" style="margin-bottom:12px">
+      <div class="section-title">
+        <h2>Unregelmäßige Ausgaben</h2>
+      </div>
+      <div class="note">Vierteljährliche &amp; jährliche Posten – seltener als monatlich.</div>
+
+      <div class="row-sub" style="margin:12px 0 6px;font-weight:700">Nächster Monat</div>
+      ${nextMonthRows.length ? `<div class="list">${nextMonthRows.map(rowHtml).join('')}</div>` : `<div class="empty">Keine im nächsten Monat.</div>`}
+
+      <div class="row-sub" style="margin:14px 0 6px;font-weight:700">Kommende 3 Monate</div>
+      <div class="list">${threeMonthRows.map(rowHtml).join('')}</div>
+    </div>
+  `;
+}
+
+function renderSpecialAccountDashboard(sa){
+  const balance=specialAccountBalance(sa);
+  const inc=specialAccountIncome(sa);
+  const spent=specialAccountSpent(sa);
+  const sorted=[...sa.transactions].sort((a,b)=>b.date.localeCompare(a.date));
+
+  return `
+    <div class="section-title">
+      <div>
+        <h2>${esc(sa.name)}</h2>
+        <div class="muted">Sonderkonto · ${esc(fmtDate(today()))}</div>
+      </div>
+      <button class="btn small secondary" onclick="deactivateSpecialAccount()">Zum Hauptkonto</button>
+    </div>
+
+    <div class="hero">
+      <div class="herotop"><span>Verfügbar in diesem Sonderkonto</span></div>
+      <div class="heroval">${money(balance)}</div>
+      <div class="herosub">Eingezahlt ${money(inc)} · Ausgegeben ${money(spent)}</div>
+    </div>
+
+    <div class="grid cards" style="grid-template-columns:repeat(3,1fr)">
+      <div class="card metric"><div class="label">Eingezahlt</div><div class="value positive">${money(inc)}</div></div>
+      <div class="card metric"><div class="label">Ausgegeben</div><div class="value negative">${money(spent)}</div></div>
+      <div class="card metric"><div class="label">Rest</div><div class="value ${balance>=0?'positive':'negative'}">${money(balance)}</div></div>
+    </div>
+
+    <div class="quick">
+      <button class="btn" onclick="openSpecialTransaction('income')">＋ Einzahlen</button>
+      <button class="btn secondary" onclick="openSpecialTransaction('expense')">＋ Ausgabe</button>
+    </div>
+
+    <div class="card" style="margin-top:12px">
+      <div class="section-title">
+        <h2>Buchungen</h2>
+        <button class="btn small danger" onclick="resetSpecialAccount()">Zurücksetzen</button>
+      </div>
+      ${sorted.length ? `
+        <div class="note" style="margin-bottom:8px">Antippen zum Bearbeiten · nach links wischen zum Löschen</div>
+        <div class="list">${sorted.map(specialTransactionRow).join('')}</div>
+      ` : `<div class="empty">Noch keine Buchungen in diesem Sonderkonto.</div>`}
+    </div>
+  `;
+}
+
+function specialTransactionRow(x){
+  return `
+    <div class="swiperow">
+      <button class="swipe-del" onclick="deleteSpecialTransaction('${x.id}')">Löschen</button>
+      <div class="row" ontouchstart="swipeStart(event,this)" ontouchmove="swipeMove(event,this)" ontouchend="swipeEnd(event,this)"
+           onclick="swipeRowClick(event,this,()=>openSpecialTransaction('${x.type}','${x.id}'))">
+        <div class="row-main">
+          <div class="row-title">${x.type==='income'?'＋':'−'} ${esc(x.note||(x.type==='income'?'Einzahlung':'Ausgabe'))}</div>
+          <div class="row-sub">${esc(fmtDate(x.date))}</div>
+        </div>
+        <div class="row-right">
+          <div class="amount ${x.type==='income'?'positive':'negative'}">${x.type==='income'?'+':'−'}${money(x.amount)}</div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function openSpecialTransaction(type='expense',tid=null){
+  const sa=activeSpecialAccount();
+  if(!sa) return;
+  const old=tid ? sa.transactions.find(x=>x.id===tid) : null;
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>${old?'Buchung bearbeiten':(type==='income'?'Einzahlung erfassen':'Ausgabe erfassen')} · ${esc(sa.name)}</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <form id="specialTxForm" onsubmit="return saveSpecialTransaction(event,'${type}','${tid||''}')">
+      <div class="formgrid">
+        <div class="field">
+          <label>Art</label>
+          <select name="type">
+            <option value="expense" ${type==='expense'?'selected':''}>Ausgabe</option>
+            <option value="income" ${type==='income'?'selected':''}>Einzahlung</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Betrag (€)</label>
+          <input name="amount" type="number" step="0.01" min="0.01" required value="${old?esc(old.amount):''}">
+        </div>
+        <div class="field">
+          <label>Datum</label>
+          <input name="date" type="date" required value="${esc(old?.date||today())}">
+        </div>
+        <div class="field full">
+          <label>Notiz</label>
+          <input name="note" maxlength="100" placeholder="z. B. Flugtickets" value="${esc(old?.note||'')}">
+        </div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn secondary" onclick="closeModal()">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
+  document.getElementById('specialTxForm')?.amount?.focus();
+}
+
+function saveSpecialTransaction(ev,type,tid){
+  ev.preventDefault();
+  const sa=activeSpecialAccount();
+  if(!sa) return false;
+  const fd=new FormData(ev.target);
+
+  const obj={
+    id:tid||id(),
+    type:fd.get('type'),
+    amount:Math.round(Number(fd.get('amount'))*100)/100,
+    date:fd.get('date'),
+    note:String(fd.get('note')||'').trim()
+  };
+
+  if(!obj.amount || !obj.date){ alert('Bitte Betrag und Datum prüfen.'); return false; }
+
+  if(tid){
+    const i=sa.transactions.findIndex(x=>x.id===tid);
+    if(i>=0) sa.transactions[i]=obj;
+  }else{
+    sa.transactions.push(obj);
+  }
+
+  save();
+  closeModal();
+  render();
+  return false;
+}
+
+function deleteSpecialTransaction(tid){
+  const sa=activeSpecialAccount();
+  if(!sa) return;
+  const idx=sa.transactions.findIndex(x=>x.id===tid);
+  if(idx<0) return;
+
+  const removed=sa.transactions[idx];
+  sa.transactions.splice(idx,1);
+  save();
+  render();
+  showUndoToast('Buchung gelöscht.', ()=>{ sa.transactions.splice(idx,0,removed); });
 }
 
 function budgetWarningsHtml(ms,t){
@@ -2070,6 +2357,10 @@ function renderLists(){
         <button class="btn small" onclick="openCategoryEditor()">＋ Kategorie</button>
       </div>
 
+      ${state.categories.some(c=>c.budget>0) ? `
+        <button class="btn secondary" style="width:100%;margin-bottom:12px" onclick="openBudgetOverview()">📊 Budgetübersicht</button>
+      ` : ''}
+
       <div class="list">
         ${state.categories.map(c=>`
           <div class="row">
@@ -2179,6 +2470,7 @@ function renderLists(){
                 <div class="row-sub">
                   ${r.type==='income'?'Einnahme':'Ausgabe'} · ${esc(recurringLabel(r))}${r.fixed?' · fest':''}
                 </div>
+                <div class="row-sub">${recurringDueNote(r)}</div>
               </div>
               <div class="row-right">
                 <strong>${money(amountAt(r,today()))}</strong>
@@ -2413,6 +2705,65 @@ function deleteTransaction(tid){
 /* =========================
    KATEGORIEN & BUDGETS
 ========================= */
+
+function openBudgetOverview(){
+  const t=today();
+  const budgeted=state.categories.filter(c=>c.budget>0);
+  const orphaned=state.specialAccounts.filter(sa=>!budgeted.some(c=>c.id===sa.categoryId));
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>Budgetübersicht</h3>
+      <button class="close" onclick="closeModal()">✕</button>
+    </div>
+    <p class="note" style="margin-bottom:12px">Laufender Monat · ${esc(fmtMonth(t))}</p>
+
+    ${budgeted.length ? budgeted.map(c=>{
+      const spent=spentThisMonthForCat(c.id);
+      const rest=c.budget-spent;
+      const pct=c.budget>0 ? spent/c.budget*100 : 0;
+      const cls=pct>=100?'over':pct>=90?'near':'';
+      const color=catColorOf(c.id);
+      const sa=state.specialAccounts.find(x=>x.categoryId===c.id);
+      const isActive=sa && state.settings.activeSpecialAccountId===sa.id;
+      return `
+        <div class="goalrow">
+          <div class="goaltop">
+            <span class="goalname"><span class="swatch" style="background:${color}"></span>${esc(c.name)}</span>
+            <span class="goalpct">${pct.toFixed(0)}%</span>
+          </div>
+          <div class="bar"><span class="${cls}" style="width:${Math.min(100,pct)}%${cls?'':';background:'+color}"></span></div>
+          <div class="row-sub" style="margin-top:7px">
+            Gesamt: ${money(c.budget)} · Verbraucht: ${money(spent)} · Rest: <strong class="${rest<0?'negative':''}">${money(rest)}</strong>
+          </div>
+          <label class="check" style="margin-top:9px">
+            <input type="checkbox" ${isActive?'checked':''} onchange="toggleSpecialAccount('${c.id}')">
+            Als Sonderkonto verwalten${sa && sa.transactions.length ? ' · '+money(specialAccountBalance(sa))+' vorhanden' : ''}
+          </label>
+        </div>
+      `;
+    }).join('') : `<div class="empty">Noch keine Budgets vergeben.</div>`}
+
+    ${orphaned.length ? `
+      <hr style="border:0;border-top:1px solid var(--line);margin:16px 0">
+      <p class="note">Weitere Sonderkonten (Kategorie ohne aktuelles Budget)</p>
+      ${orphaned.map(sa=>`
+        <div class="row">
+          <div class="row-main">
+            <div class="row-title">${esc(sa.name)}</div>
+            <div class="row-sub">${money(specialAccountBalance(sa))}</div>
+          </div>
+          <button class="btn small ${state.settings.activeSpecialAccountId===sa.id?'danger':'secondary'}" onclick="toggleSpecialAccountById('${sa.id}')">
+            ${state.settings.activeSpecialAccountId===sa.id?'Deaktivieren':'Aktivieren'}
+          </button>
+        </div>
+      `).join('')}
+    ` : ''}
+
+    <div class="actions"><button class="btn secondary" onclick="closeModal()">Schließen</button></div>
+  `;
+  showModal();
+}
 
 function openCategoryEditor(cid=null){
   const c=cid ? state.categories.find(x=>x.id===cid) : null;
@@ -2725,13 +3076,71 @@ function openGoalHistory(gid){
             <div class="row-title">${h.kind==='in'?'＋':'－'} ${money(h.amount)}</div>
             <div class="row-sub">${esc(fmtDate(h.date))}${h.note?' · '+esc(h.note):''}</div>
           </div>
-          <button class="btn small danger" onclick="deleteGoalHistoryEntry('${gid}','${h.id}')">Löschen</button>
+          <div class="toolbar">
+            <button class="btn small secondary" onclick="editGoalHistoryEntry('${gid}','${h.id}')">Bearbeiten</button>
+            <button class="btn small danger" onclick="deleteGoalHistoryEntry('${gid}','${h.id}')">Löschen</button>
+          </div>
         </div>
       `).join('') : `<div class="empty">Noch keine Bewegungen.</div>`}
     </div>
     <div class="actions"><button class="btn secondary" onclick="closeModal()">Schließen</button></div>
   `;
   showModal();
+}
+
+function editGoalHistoryEntry(gid,hid){
+  const g=state.goals.find(x=>x.id===gid);
+  if(!g) return;
+  const h=g.history.find(x=>x.id===hid);
+  if(!h) return;
+
+  document.getElementById('modal').innerHTML=`
+    <div class="modalhead">
+      <h3>Bewegung bearbeiten · ${esc(g.name)}</h3>
+      <button class="close" onclick="openGoalHistory('${gid}')">✕</button>
+    </div>
+    <form onsubmit="return updateGoalHistoryEntry(event,'${gid}','${hid}')">
+      <div class="formgrid">
+        <div class="field">
+          <label>Art</label>
+          <select name="kind">
+            <option value="in" ${h.kind==='in'?'selected':''}>Einzahlung</option>
+            <option value="out" ${h.kind==='out'?'selected':''}>Rückbuchung</option>
+          </select>
+        </div>
+        <div class="field"><label>Betrag (€)</label><input name="amount" type="number" step="0.01" min="0.01" required value="${esc(h.amount)}"></div>
+        <div class="field"><label>Datum</label><input name="date" type="date" required value="${esc(h.date)}"></div>
+        <div class="field full"><label>Notiz (optional)</label><input name="note" maxlength="80" value="${esc(h.note||'')}"></div>
+      </div>
+      <div class="actions">
+        <button type="button" class="btn danger" onclick="deleteGoalHistoryEntry('${gid}','${hid}')">Löschen</button>
+        <button type="button" class="btn secondary" onclick="openGoalHistory('${gid}')">Abbrechen</button>
+        <button class="btn" type="submit">Speichern</button>
+      </div>
+    </form>
+  `;
+  showModal();
+}
+
+function updateGoalHistoryEntry(ev,gid,hid){
+  ev.preventDefault();
+  const g=state.goals.find(x=>x.id===gid);
+  if(!g) return false;
+  const h=g.history.find(x=>x.id===hid);
+  if(!h) return false;
+
+  const fd=new FormData(ev.target);
+  const amount=Number(fd.get('amount'))||0;
+  if(amount<=0){ alert('Bitte einen gültigen Betrag eingeben.'); return false; }
+
+  h.kind=fd.get('kind');
+  h.amount=amount;
+  h.date=fd.get('date');
+  h.note=String(fd.get('note')||'').trim();
+
+  save();
+  openGoalHistory(gid);
+  return false;
 }
 
 function deleteGoalHistoryEntry(gid,hid){
@@ -2928,6 +3337,7 @@ function openRecurring(){
               ${r.type==='income'?'Einnahme':'Ausgabe'} · ${esc(recurringLabel(r))} · ${r.fixed?'fest':'nicht fest'}
               ${r.recurrence==='manual' && r.annualOccurrences ? ` · ${r.annualOccurrences}×/Jahr` : ''}
             </div>
+            <div class="row-sub">${recurringDueNote(r)}</div>
             <div>${catsHtml(r.categories)}</div>
           </div>
           <div class="row-right">
@@ -2944,6 +3354,14 @@ function openRecurring(){
   showModal();
 }
 
+function recurringDueNote(r){
+  if(r.endDate && r.endDate<today()) return 'beendet (letzte Abbuchung '+fmtDate(r.endDate)+')';
+  const next=nextOccurrenceDate(r,today());
+  let txt = next ? 'nächste Fälligkeit: '+fmtDate(next) : (r.recurrence==='manual' ? 'ohne festen Termin' : 'keine weitere Fälligkeit');
+  if(r.endDate) txt += ' · endet '+fmtDate(r.endDate);
+  return esc(txt);
+}
+
 function editRecurring(rid=null){
   const r=rid ? state.recurring.find(x=>x.id===rid) : null;
   const currentAmount = r ? amountAt(r,today()) : '';
@@ -2953,11 +3371,15 @@ function editRecurring(rid=null){
         .map(h=>money(h.amount)+' (ab '+fmtDate(h.validFrom)+')').join(', ')
     : '';
 
+  const dueNote = r ? recurringDueNote(r) : '';
+
   document.getElementById('modal').innerHTML=`
     <div class="modalhead">
       <h3>${r?'Posten bearbeiten':'Wiederkehrenden Posten anlegen'}</h3>
       <button class="close" onclick="openRecurring()">✕</button>
     </div>
+
+    ${dueNote ? `<p class="note" style="margin-bottom:12px">${dueNote}</p>` : ''}
 
     <form onsubmit="return saveRecurring(event,'${rid||''}')">
       <div class="formgrid">
@@ -2983,6 +3405,12 @@ function editRecurring(rid=null){
         <div class="field">
           <label>Startdatum</label>
           <input name="startDate" type="date" required value="${esc(r?.startDate||today())}">
+        </div>
+
+        <div class="field">
+          <label>Enddatum (optional)</label>
+          <input name="endDate" type="date" value="${esc(r?.endDate||'')}">
+          <span class="note">Letztmalige Abbuchung. Leer lassen, wenn unbegrenzt.</span>
         </div>
 
         <div class="field">
@@ -3023,7 +3451,7 @@ function editRecurring(rid=null){
         <div class="field full">
           <label class="check">
             <input type="checkbox" name="fixed" ${r?.fixed?'checked':''}>
-            Als feste Ausgabe / festen Posten analysieren
+            Als festen Posten analysieren (Festkosten-Auswertung)
           </label>
         </div>
       </div>
@@ -3047,6 +3475,7 @@ function saveRecurring(ev,rid){
     amount:Math.round(Number(fd.get('amount'))*100)/100,
     name:String(fd.get('name')).trim(),
     startDate:fd.get('startDate'),
+    endDate:fd.get('endDate')||'',
     recurrence:fd.get('recurrence'),
     annualOccurrences:Number(fd.get('annualOccurrences'))||0,
     categories:fd.getAll('cat'),
@@ -3057,6 +3486,11 @@ function saveRecurring(ev,rid){
 
   if(!obj.amount || !obj.name || !obj.startDate){
     alert('Bitte Betrag, Bezeichnung und Startdatum prüfen.');
+    return false;
+  }
+
+  if(obj.endDate && obj.endDate<obj.startDate){
+    alert('Das Enddatum darf nicht vor dem Startdatum liegen.');
     return false;
   }
 
